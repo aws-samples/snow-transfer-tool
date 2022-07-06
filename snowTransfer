@@ -1,0 +1,115 @@
+import argparse
+import configparser
+import humanfriendly
+import sys
+
+partition_command = 'gen_list'
+copy_command = 'upload_sbe'
+## treating arguments
+# create the top-level parser
+parser = argparse.ArgumentParser(prog='SnowTransferTool')
+subparsers = parser.add_subparsers(dest="cmd")
+# create the parser for the "gen_list" command
+parser_a = subparsers.add_parser(partition_command, help=partition_command + ' --help')
+parser_a.add_argument('--config_file', help='path of config file e) /tmp/config. If this argument is not present in command line, --src_dir, --filelist_dir, and --partition_size are required', action='store', default='')
+parser_a.add_argument('--src_dir', help='source directory e) /data/dir1/', action='store', required='--config_file' not in sys.argv)
+parser_a.add_argument('--filelist_dir', help='output destination e) /tmp/file_list/', action='store', required='--config_file' not in sys.argv)
+parser_a.add_argument('--partition_size', help='size limit for each partition e) 10Tb', action='store', required='--config_file' not in sys.argv, default="10Tb")
+# create the parser for the "upload_sbe" command
+parser_b = subparsers.add_parser(copy_command, help=copy_command + ' --help')
+parser_b.add_argument('--config_file', help='path of config file e) /tmp/config. If this argument is not present in command line, --src_dir, --bucket_name, --endpoint, and --log_dir are required', action='store', default='')
+parser_b.add_argument('--src_dir', help='source directory e) /data/dir1/', action='store', required='--config_file' not in sys.argv)
+parser_b.add_argument('--bucket_name', help='your bucket name e) your-bucket', action='store', required='--config_file' not in sys.argv)
+parser_b.add_argument('--endpoint', help='snowball endpoint e) http://10.10.10.10:8080', action='store', required='--config_file' not in sys.argv)
+parser_b.add_argument('--log_dir', help='directory that stores log files e)/tmp/JID01', action='store', required='--config_file' not in sys.argv, default='/tmp/log')
+parser_b.add_argument('--profile_name', help='aws_profile_name e) sbe1', action='store', default='default')
+parser_b.add_argument('--prefix_root', help='prefix root e) dir1/', action='store', default='')
+parser_b.add_argument('--max_process', help='max number of thread e) 5', action='store', default=5, type=int)
+parser_b.add_argument('--max_tarfile_size', help='size limit of batched files e) 1Gb', action='store', default="1Gb")
+parser_b.add_argument('--compression', help='True|False compress file to "gz" format', action='store', default='False', type=bool)
+parser_b.add_argument('--extract_flag', help='True|False; Set the autoextract flag', action='store', default='True', type=bool)
+parser_b.add_argument('--target_file_prefix', help='prefix of the target file we are creating into the snowball', action='store', default='')
+
+# parse argument lists
+args = parser.parse_args()
+
+if (not args.cmd):
+    help_mesg = f'''usage: SnowTransferTool [-h] {{{partition_command},{copy_command}}} ...
+positional arguments:
+{{{partition_command},{copy_command}}}
+    {partition_command}            {partition_command} --help
+    {copy_command}          {copy_command} --help'''
+    print(help_mesg)
+    exit()
+
+print(args)
+
+src_dir = args.src_dir
+if (args.cmd == partition_command):
+    #config for gen_list
+    filelist_dir = args.filelist_dir
+    partition_size = humanfriendly.parse_size(args.partition_size, binary=True)
+
+if (args.cmd == copy_command):
+    #config for upload_sbe
+    prefix_root = args.prefix_root ## Don't forget to add last slash '/'
+    bucket_name = args.bucket_name
+    profile_name = args.profile_name
+    endpoint = args.endpoint
+    max_process = args.max_process
+    max_tarfile_size = humanfriendly.parse_size(args.max_tarfile_size, binary=True) # 10GiB, 100GiB is max limit of snowball
+    compression = args.compression # default for no compression, "gz" to enable
+    target_file_prefix = args.target_file_prefix
+    extract_flag = args.extract_flag # default True
+    log_dir = args.log_dir
+
+def setup_config(cmd):
+    listOfGlobals = globals()
+    config = configparser.ConfigParser()
+    config.read(args.config_file)
+    if (cmd == partition_command):
+        if (bool(args.config_file)):
+            listOfGlobals['src_dir'] = config['GENLIST']['src_dir']
+            listOfGlobals['filelist_dir'] = config['GENLIST']['filelist_dir']
+            listOfGlobals['partition_size'] = humanfriendly.parse_size(config['GENLIST']['partition_size'], binary=True)
+         # Check if the filelist_dir and partition_size were correctly set up
+        if (not src_dir or not filelist_dir or not partition_size):
+            raise ValueError("src_dir, filelist_dir and partition_size must be specified!")
+        output_config = f'''Command: {cmd}
+src_dir: {src_dir}
+filelist_dir: {filelist_dir}
+partition_size: {str(partition_size)}'''
+        print(output_config)
+    elif (cmd == copy_command):
+        if (bool(args.config_file)):
+            listOfGlobals['src_dir'] = config['UPLOAD_SBE']['src_dir']
+            listOfGlobals['endpoint'] = config['UPLOAD_SBE']['endpoint']
+            listOfGlobals['bucket_name'] = config['UPLOAD_SBE']['bucket_name']
+            listOfGlobals['prefix_root'] = config['UPLOAD_SBE']['prefix_root']
+            listOfGlobals['profile_name'] = config['UPLOAD_SBE']['profile_name']
+            listOfGlobals['max_process'] = int(config['UPLOAD_SBE']['max_process'])
+            listOfGlobals['max_tarfile_size'] = humanfriendly.parse_size(config['UPLOAD_SBE']['max_tarfile_size'], binary=True)
+            listOfGlobals['compression'] = eval(config['UPLOAD_SBE']['compression'].capitalize())
+            listOfGlobals['target_file_prefix'] = config['UPLOAD_SBE']['target_file_prefix']
+            listOfGlobals['extract_flag'] = eval(config['UPLOAD_SBE']['extract_flag'].capitalize())
+            listOfGlobals['log_dir'] = config['UPLOAD_SBE']['log_dir']
+        if (not src_dir or not bucket_name or not endpoint or not log_dir):
+            raise ValueError("src_dir, bucket_name, endpoint and log_dir must be specified!")
+        output_config = f'''Command: {cmd}
+src_dir: {src_dir}
+endpoint: {endpoint}
+bucket_name: {bucket_name}
+log_dir: {log_dir}
+profile_name: {profile_name}
+prefix_root: {prefix_root}
+max_process: {str(max_process)}
+max_tarfile_size: {str(max_tarfile_size)}
+compression: {str(compression)}
+target_file_prefix: {target_file_prefix}
+extract_flag: {str(extract_flag)}
+'''
+        print(output_config)
+
+# start main function
+if __name__ == '__main__':
+    setup_config(args.cmd)
