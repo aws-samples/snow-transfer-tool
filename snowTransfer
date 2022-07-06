@@ -1,7 +1,10 @@
 import argparse
 import configparser
 import humanfriendly
+import logging
+import os
 import sys
+from datetime import datetime
 
 partition_command = 'gen_list'
 copy_command = 'upload_sbe'
@@ -58,20 +61,56 @@ if (args.cmd == copy_command):
     endpoint = args.endpoint
     max_process = args.max_process
     max_tarfile_size = humanfriendly.parse_size(args.max_tarfile_size, binary=True) # 10GiB, 100GiB is max limit of snowball
-    compression = args.compression # default for no compression, "gz" to enable
+    compression = 'gz' if args.compression else '' # default for no compression, "gz" to enable
     target_file_prefix = args.target_file_prefix
     extract_flag = args.extract_flag # default True
     log_dir = args.log_dir
 
+#set up logger
+def setup_logger(logger_name, log_file, level=logging.INFO, sHandler=False, format='%(message)s'):
+    l = logging.getLogger(logger_name)
+    l.setLevel(level)
+    formatter = logging.Formatter(format)
+    fileHandler = logging.FileHandler(log_file, mode='a', encoding='utf-8')
+    fileHandler.setFormatter(formatter)
+    streamHandler = logging.StreamHandler()
+    streamHandler.setFormatter(formatter)
+    l.addHandler(fileHandler)
+    if sHandler:
+        l.addHandler(streamHandler)
+    return l
+
+def create_logger():
+    current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+    if (hasattr(args, 'log_dir')):
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+        except: 
+            raise ValueError("Error while trying to make directory:" + log_dir)
+        error_batch = log_dir + '/error-batch-%s.log' % current_time
+        success_batch = log_dir + '/success-batch-%s.log' % current_time
+        error_upload = log_dir + '/error-upload-%s.log' % current_time
+        success_upload = log_dir + '/success-upload-%s.log' % current_time
+        snow_transfer_log = log_dir + '/snowTransfer-full-%s-log' % current_time
+        ## define logger
+        global error_log_file, success_log_file, error_log_tar, success_log_tar, snow_transfer_full
+        error_log_file = setup_logger('error_log_file', error_batch, level=log_level, sHandler=False)
+        success_log_file = setup_logger('success_log_file', success_batch, level=log_level, sHandler=False)
+        error_log_tar = setup_logger('error_log_tar', error_upload, level=log_level, sHandler=False)
+        success_log_tar = setup_logger('success_log_tar', success_upload, level=log_level, sHandler=False)
+        snow_transfer_full = setup_logger('snow_transfer_full', snow_transfer_log, level=log_level, sHandler=True, format='%(asctime)s : %(funcName)s : [%(levelname)s] : %(message)s')
+
+log_level = logging.INFO ## DEBUG, INFO, WARNING, ERROR
+
 def setup_config(cmd):
-    listOfGlobals = globals()
+    list_of_globals = globals()
     config = configparser.ConfigParser()
     config.read(args.config_file)
     if (cmd == partition_command):
         if (bool(args.config_file)):
-            listOfGlobals['src_dir'] = config['GENLIST']['src_dir']
-            listOfGlobals['filelist_dir'] = config['GENLIST']['filelist_dir']
-            listOfGlobals['partition_size'] = humanfriendly.parse_size(config['GENLIST']['partition_size'], binary=True)
+            list_of_globals['src_dir'] = config['GENLIST']['src_dir']
+            list_of_globals['filelist_dir'] = config['GENLIST']['filelist_dir']
+            list_of_globals['partition_size'] = humanfriendly.parse_size(config['GENLIST']['partition_size'], binary=True)
          # Check if the filelist_dir and partition_size were correctly set up
         if (not src_dir or not filelist_dir or not partition_size):
             raise ValueError("src_dir, filelist_dir and partition_size must be specified!")
@@ -81,35 +120,49 @@ filelist_dir: {filelist_dir}
 partition_size: {str(partition_size)}'''
         print(output_config)
     elif (cmd == copy_command):
+        #If the config file was provided, overwrite the default setting with values in config file.
         if (bool(args.config_file)):
-            listOfGlobals['src_dir'] = config['UPLOAD_SBE']['src_dir']
-            listOfGlobals['endpoint'] = config['UPLOAD_SBE']['endpoint']
-            listOfGlobals['bucket_name'] = config['UPLOAD_SBE']['bucket_name']
-            listOfGlobals['prefix_root'] = config['UPLOAD_SBE']['prefix_root']
-            listOfGlobals['profile_name'] = config['UPLOAD_SBE']['profile_name']
-            listOfGlobals['max_process'] = int(config['UPLOAD_SBE']['max_process'])
-            listOfGlobals['max_tarfile_size'] = humanfriendly.parse_size(config['UPLOAD_SBE']['max_tarfile_size'], binary=True)
-            listOfGlobals['compression'] = eval(config['UPLOAD_SBE']['compression'].capitalize())
-            listOfGlobals['target_file_prefix'] = config['UPLOAD_SBE']['target_file_prefix']
-            listOfGlobals['extract_flag'] = eval(config['UPLOAD_SBE']['extract_flag'].capitalize())
-            listOfGlobals['log_dir'] = config['UPLOAD_SBE']['log_dir']
+            list_of_globals['src_dir'] = config['UPLOAD_SBE']['src_dir']
+            list_of_globals['endpoint'] = config['UPLOAD_SBE']['endpoint']
+            list_of_globals['bucket_name'] = config['UPLOAD_SBE']['bucket_name']
+            list_of_globals['prefix_root'] = config['UPLOAD_SBE']['prefix_root']
+            list_of_globals['profile_name'] = config['UPLOAD_SBE']['profile_name']
+            list_of_globals['max_process'] = int(config['UPLOAD_SBE']['max_process'])
+            list_of_globals['max_tarfile_size'] = humanfriendly.parse_size(config['UPLOAD_SBE']['max_tarfile_size'], binary=True)
+            list_of_globals['compression'] = 'gz' if eval(config['UPLOAD_SBE']['compression'].capitalize()) else ''
+            list_of_globals['target_file_prefix'] = config['UPLOAD_SBE']['target_file_prefix']
+            list_of_globals['extract_flag'] = eval(config['UPLOAD_SBE']['extract_flag'].capitalize())
+            list_of_globals['log_dir'] = config['UPLOAD_SBE']['log_dir']
         if (not src_dir or not bucket_name or not endpoint or not log_dir):
             raise ValueError("src_dir, bucket_name, endpoint and log_dir must be specified!")
-        output_config = f'''Command: {cmd}
+
+def human_readable_size(size, decimal_places=2):
+    for unit in ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB']:
+        if size < 1024.0 or unit == 'PiB':
+            break
+        size /= 1024.0
+    return f"{size:.{decimal_places}f} {unit}"
+
+def print_setting():
+    output_config = f'''
+command: {args.cmd}
 src_dir: {src_dir}
 endpoint: {endpoint}
 bucket_name: {bucket_name}
 log_dir: {log_dir}
 profile_name: {profile_name}
 prefix_root: {prefix_root}
-max_process: {str(max_process)}
-max_tarfile_size: {str(max_tarfile_size)}
-compression: {str(compression)}
+max_process: {max_process}
+max_tarfile_size: {human_readable_size(max_tarfile_size)}
+compression: {bool(compression)}
 target_file_prefix: {target_file_prefix}
-extract_flag: {str(extract_flag)}
-'''
-        print(output_config)
+extract_flag: {extract_flag}'''
+    snow_transfer_full.info(output_config)
 
 # start main function
 if __name__ == '__main__':
     setup_config(args.cmd)
+    create_logger()
+    snow_transfer_full.info('Progrem started!')
+    print_setting()
+    snow_transfer_full.info('Program finished!')
