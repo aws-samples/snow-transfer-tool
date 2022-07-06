@@ -8,7 +8,7 @@ max_process = 5
 max_tarfile_size = 1GB
 extract_flag = True
 target_file_prefix = zictest
-log_dir = /tmp/log/s3booster/JID0001/
+log_dir = /tmp/log/s3booster/JID0001
 compression = False
 [GENLIST]
 filelist_dir = /tmp/s3booster
