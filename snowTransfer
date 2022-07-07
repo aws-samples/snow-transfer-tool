@@ -3,6 +3,8 @@ import configparser
 import humanfriendly
 import logging
 import os
+import shutil
+import stat
 import sys
 from datetime import datetime
 
@@ -14,17 +16,18 @@ parser = argparse.ArgumentParser(prog='SnowTransferTool')
 subparsers = parser.add_subparsers(dest="cmd")
 # create the parser for the "gen_list" command
 parser_a = subparsers.add_parser(partition_command, help=partition_command + ' --help')
-parser_a.add_argument('--config_file', help='path of config file e) /tmp/config. If this argument is not present in command line, --src_dir, --filelist_dir, and --partition_size are required', action='store', default='')
+parser_a.add_argument('--config_file', help='path of config file e) /tmp/config. If this argument is not present in command line, --src_dir, --filelist_dir, --partition_size, and --log_dir are required', action='store', default='')
 parser_a.add_argument('--src_dir', help='source directory e) /data/dir1/', action='store', required='--config_file' not in sys.argv)
 parser_a.add_argument('--filelist_dir', help='output destination e) /tmp/file_list/', action='store', required='--config_file' not in sys.argv)
 parser_a.add_argument('--partition_size', help='size limit for each partition e) 10Tb', action='store', required='--config_file' not in sys.argv, default="10Tb")
+parser_a.add_argument('--log_dir', help='directory that stores log files e)/tmp/JID01', action='store', required='--config_file' not in sys.argv, default='/tmp/snowtransfertool/log')
 # create the parser for the "upload_sbe" command
 parser_b = subparsers.add_parser(copy_command, help=copy_command + ' --help')
 parser_b.add_argument('--config_file', help='path of config file e) /tmp/config. If this argument is not present in command line, --src_dir, --bucket_name, --endpoint, and --log_dir are required', action='store', default='')
 parser_b.add_argument('--src_dir', help='source directory e) /data/dir1/', action='store', required='--config_file' not in sys.argv)
 parser_b.add_argument('--bucket_name', help='your bucket name e) your-bucket', action='store', required='--config_file' not in sys.argv)
 parser_b.add_argument('--endpoint', help='snowball endpoint e) http://10.10.10.10:8080', action='store', required='--config_file' not in sys.argv)
-parser_b.add_argument('--log_dir', help='directory that stores log files e)/tmp/JID01', action='store', required='--config_file' not in sys.argv, default='/tmp/log')
+parser_b.add_argument('--log_dir', help='directory that stores log files e)/tmp/JID01', action='store', required='--config_file' not in sys.argv, default='/tmp/snowtransfertool/log')
 parser_b.add_argument('--profile_name', help='aws_profile_name e) sbe1', action='store', default='default')
 parser_b.add_argument('--prefix_root', help='prefix root e) dir1/', action='store', default='')
 parser_b.add_argument('--max_process', help='max number of thread e) 5', action='store', default=5, type=int)
@@ -47,7 +50,9 @@ positional arguments:
 
 print(args)
 
+# src and log dir are required in both commands.
 src_dir = args.src_dir
+log_dir = args.log_dir
 if (args.cmd == partition_command):
     #config for gen_list
     filelist_dir = args.filelist_dir
@@ -64,7 +69,6 @@ if (args.cmd == copy_command):
     compression = 'gz' if args.compression else '' # default for no compression, "gz" to enable
     target_file_prefix = args.target_file_prefix
     extract_flag = args.extract_flag # default True
-    log_dir = args.log_dir
 
 #set up logger
 def setup_logger(logger_name, log_file, level=logging.INFO, sHandler=False, format='%(message)s'):
@@ -94,11 +98,12 @@ def create_logger():
         snow_transfer_log = log_dir + '/snowTransfer-full-%s-log' % current_time
         ## define logger
         global error_log_file, success_log_file, error_log_tar, success_log_tar, snow_transfer_full
-        error_log_file = setup_logger('error_log_file', error_batch, level=log_level, sHandler=False)
-        success_log_file = setup_logger('success_log_file', success_batch, level=log_level, sHandler=False)
-        error_log_tar = setup_logger('error_log_tar', error_upload, level=log_level, sHandler=False)
-        success_log_tar = setup_logger('success_log_tar', success_upload, level=log_level, sHandler=False)
         snow_transfer_full = setup_logger('snow_transfer_full', snow_transfer_log, level=log_level, sHandler=True, format='%(asctime)s : %(funcName)s : [%(levelname)s] : %(message)s')
+        if (args.cmd == copy_command):
+            error_log_file = setup_logger('error_log_file', error_batch, level=log_level, sHandler=False)
+            success_log_file = setup_logger('success_log_file', success_batch, level=log_level, sHandler=False)
+            error_log_tar = setup_logger('error_log_tar', error_upload, level=log_level, sHandler=False)
+            success_log_tar = setup_logger('success_log_tar', success_upload, level=log_level, sHandler=False)
 
 log_level = logging.INFO ## DEBUG, INFO, WARNING, ERROR
 
@@ -111,6 +116,7 @@ def setup_config(cmd):
             list_of_globals['src_dir'] = config['GENLIST']['src_dir']
             list_of_globals['filelist_dir'] = config['GENLIST']['filelist_dir']
             list_of_globals['partition_size'] = humanfriendly.parse_size(config['GENLIST']['partition_size'], binary=True)
+            list_of_globals['log_dir'] = config['GENLIST']['log_dir']
          # Check if the filelist_dir and partition_size were correctly set up
         if (not src_dir or not filelist_dir or not partition_size):
             raise ValueError("src_dir, filelist_dir and partition_size must be specified!")
@@ -144,7 +150,16 @@ def human_readable_size(size, decimal_places=2):
     return f"{size:.{decimal_places}f} {unit}"
 
 def print_setting():
-    output_config = f'''
+    if (args.cmd == partition_command):
+        output_config = f'''
+Command: {args.cmd}
+src_dir: {src_dir}
+filelist_dir: {filelist_dir}
+partition_size: {human_readable_size(partition_size)}
+log_dir: {log_dir}'''
+        snow_transfer_full.info(output_config)
+    elif (args.cmd == copy_command):
+        output_config = f'''
 command: {args.cmd}
 src_dir: {src_dir}
 endpoint: {endpoint}
@@ -157,12 +172,84 @@ max_tarfile_size: {human_readable_size(max_tarfile_size)}
 compression: {bool(compression)}
 target_file_prefix: {target_file_prefix}
 extract_flag: {extract_flag}'''
-    snow_transfer_full.info(output_config)
+        snow_transfer_full.info(output_config)
+
+def write_to_file(dict):
+    for key, value in dict.items():
+        with open(key, 'a') as f:
+            for line in value:
+                f.write("%s\n" %line)
+    return 0
+
+#Error handler for ``shutil.rmtree``
+def handle_rmtree_err(func, path, exc_info):
+    snow_transfer_full.error("Error while trying to clean: %s\n%s" % (path, exc_info))
+    exit()
+
+def gen_filelist(src):
+    sum_size = 0
+    fl_prefix = 'fl_'
+    fl_index = 1
+    delimiter = ', '
+    num_file_processed = 0
+    file_target_mp = dict()
+    customer_input = input ("This operation will clean all the contents in: %s. Continue? Y/N\n" % filelist_dir)
+    if (customer_input[0].lower() != 'y'):
+        exit()
+    shutil.rmtree(filelist_dir, ignore_errors=False, onerror=handle_rmtree_err)
+    try:
+        os.makedirs(filelist_dir)
+    except: 
+        raise ValueError("Error while trying to make directory:" + filelist_dir)
+    snow_transfer_full.info('generating file list by size %s bytes' % partition_size)
+    for r,d,f in os.walk(src):
+        fl_name = filelist_dir + '/' + fl_prefix + str(fl_index) + ".txt"
+        for file in f:
+            file_name = os.path.join(r,file)
+            try:
+                f_meta = os.stat(file_name)
+            except Exception as e:
+                if(os.path.islink(file_name)):
+                    # continue if it is a symlink
+                    continue
+                else:
+                    snow_transfer_full.error(str(e))
+            f_size = f_meta.st_size
+            sum_size = sum_size + f_size
+            f_info = [file_name ,str(f_size)]
+            f_info_str = delimiter.join(f_info)
+            if partition_size < sum_size:
+                if (sum_size - f_size != 0):
+                    fl_index += 1
+                    fl_name = filelist_dir + '/' + fl_prefix + str(fl_index) + ".txt"
+                snow_transfer_full.info('Part #%d: size = %d' % (fl_index - 1, sum_size - f_size))
+                sum_size = f_size
+            if fl_name not in file_target_mp:
+                file_target_mp[fl_name] = []
+            file_target_mp[fl_name].append(f_info_str)
+            num_file_processed += 1
+            # flush the dict every 100000 file to avoid OOM
+            if (num_file_processed % 100000 == 0):
+                snow_transfer_full.info('Number of scanned file: %d', num_file_processed)
+                write_to_file(file_target_mp)
+                file_target_mp = dict()
+    write_to_file(file_target_mp)
+    fl_name = filelist_dir + '/' + fl_prefix + str(fl_index) + ".txt"
+    snow_transfer_full.info('Part #%d: size = %d' % (fl_index, sum_size))
+    snow_transfer_full.info('Number of scanned file: %d, symlink and empty folders were ignored', num_file_processed)
+    snow_transfer_full.info('File lists are generated!!')
+    snow_transfer_full.info('Check %s' % filelist_dir)
+    return 0
 
 # start main function
 if __name__ == '__main__':
     setup_config(args.cmd)
     create_logger()
-    snow_transfer_full.info('Progrem started!')
+    snow_transfer_full.info('Program started!')
     print_setting()
+    #valid_setting()
+    if args.cmd == copy_command:
+        pass
+    elif args.cmd == partition_command:
+        gen_filelist(src_dir)
     snow_transfer_full.info('Program finished!')
