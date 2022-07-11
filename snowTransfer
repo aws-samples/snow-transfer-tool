@@ -1,13 +1,26 @@
 import argparse
+import boto3
+import warnings
 import configparser
 import humanfriendly
+import io
 import logging
+import multiprocessing
 import os
+import random
 import shutil
-import stat
+import string
 import sys
+import tarfile
+import traceback
+from alive_progress import alive_bar
+from boto3.s3.transfer import TransferConfig
 from datetime import datetime
 
+warnings.filterwarnings('ignore', message='Unverified HTTPS request')
+
+quit_flag = 'DONE'
+current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
 partition_command = 'gen_list'
 copy_command = 'upload_sbe'
 ## treating arguments
@@ -85,25 +98,23 @@ def setup_logger(logger_name, log_file, level=logging.INFO, sHandler=False, form
     return l
 
 def create_logger():
-    current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-    if (hasattr(args, 'log_dir')):
-        try:
-            os.makedirs(log_dir, exist_ok=True)
-        except: 
-            raise ValueError("Error while trying to make directory:" + log_dir)
-        error_batch = log_dir + '/error-batch-%s.log' % current_time
-        success_batch = log_dir + '/success-batch-%s.log' % current_time
-        error_upload = log_dir + '/error-upload-%s.log' % current_time
-        success_upload = log_dir + '/success-upload-%s.log' % current_time
-        snow_transfer_log = log_dir + '/snowTransfer-full-%s-log' % current_time
-        ## define logger
-        global error_log_file, success_log_file, error_log_tar, success_log_tar, snow_transfer_full
-        snow_transfer_full = setup_logger('snow_transfer_full', snow_transfer_log, level=log_level, sHandler=True, format='%(asctime)s : %(funcName)s : [%(levelname)s] : %(message)s')
-        if (args.cmd == copy_command):
-            error_log_file = setup_logger('error_log_file', error_batch, level=log_level, sHandler=False)
-            success_log_file = setup_logger('success_log_file', success_batch, level=log_level, sHandler=False)
-            error_log_tar = setup_logger('error_log_tar', error_upload, level=log_level, sHandler=False)
-            success_log_tar = setup_logger('success_log_tar', success_upload, level=log_level, sHandler=False)
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+    except: 
+        raise ValueError("Error while trying to make directory:" + log_dir)
+    error_batch = log_dir + '/error-batch-%s.log' % current_time
+    success_batch = log_dir + '/success-batch-%s.log' % current_time
+    error_upload = log_dir + '/error-upload-%s.log' % current_time
+    success_upload = log_dir + '/success-upload-%s.log' % current_time
+    snow_transfer_log = log_dir + '/snowTransfer-full-%s-log' % current_time
+    ## define logger
+    global error_log_batch, success_log_batch, error_log_upload, success_log_upload, snow_transfer_full
+    snow_transfer_full = setup_logger('snow_transfer_full', snow_transfer_log, level=log_level, sHandler=True, format='%(asctime)s : %(funcName)s : [%(levelname)s] : %(message)s')
+    if (args.cmd == copy_command):
+        error_log_batch = setup_logger('error_log_batch', error_batch, level=log_level, sHandler=False)
+        success_log_batch = setup_logger('success_log_batch', success_batch, level=log_level, sHandler=False)
+        error_log_upload = setup_logger('error_log_upload', error_upload, level=log_level, sHandler=False)
+        success_log_upload = setup_logger('success_log_upload', success_upload, level=log_level, sHandler=False)
 
 log_level = logging.INFO ## DEBUG, INFO, WARNING, ERROR
 
@@ -206,14 +217,13 @@ def gen_filelist(src):
         fl_name = filelist_dir + '/' + fl_prefix + str(fl_index) + ".txt"
         for file in f:
             file_name = os.path.join(r,file)
+            if(os.path.islink(file_name)):
+                # continue if it is a symlink
+                continue
             try:
                 f_meta = os.stat(file_name)
             except Exception as e:
-                if(os.path.islink(file_name)):
-                    # continue if it is a symlink
-                    continue
-                else:
-                    snow_transfer_full.error(str(e))
+                snow_transfer_full.error(str(e))
             f_size = f_meta.st_size
             sum_size = sum_size + f_size
             f_info = [file_name ,str(f_size)]
@@ -241,15 +251,209 @@ def gen_filelist(src):
     snow_transfer_full.info('Check %s' % filelist_dir)
     return 0
 
+def set_up_transfer_config():
+    global mpu_max_concurrency, transfer_config, s3_client
+    if os.name == 'posix':
+        multiprocessing.set_start_method("fork")
+    mpu_max_concurrency = 10
+    transfer_config = TransferConfig(max_concurrency=mpu_max_concurrency)
+    # S3 session
+    session = boto3.Session(profile_name=profile_name)
+    s3_client = session.client('s3', endpoint_url=endpoint, verify=False)
+
+# check source directory exist
+def check_srcdir(src_dir):
+    if not os.path.isdir(src_dir):
+        raise IOError("source directory not found: " + src_dir)
+
+# execute multi-threading
+def run_multip(max_process, exec_func, q, tar_num, batched_obj_num, total_tar_size):
+    p_list = []
+    for i in range(max_process):
+        p = multiprocessing.Process(target = exec_func, args=(q, tar_num, batched_obj_num, total_tar_size))
+        p_list.append(p)
+        p.daemon = True
+        p.start()
+    return p_list
+
+def finishq(q, p_list):
+    for j in range(max_process):
+        q.put(quit_flag)
+    for pi in p_list:
+        pi.join()
+
+def conv_obj_name(file_name, prefix_root, sub_prefix):
+    if len(prefix_root) == 0 :
+        pass
+    elif prefix_root[-1] != '/':
+        prefix_root = prefix_root + '/'
+    else:
+        prefix_root = prefix_root
+    if sub_prefix[-1] != '/':
+        sub_prefix = sub_prefix + '/'
+    if os.name == 'nt':
+        obj_name = prefix_root + file_name.replace(sub_prefix,'',1).replace('\\', '/')
+    else:
+        obj_name = prefix_root + file_name.replace(sub_prefix,'',1)
+    return obj_name
+
+# generate random 6 character
+def gen_rand_char():
+    char_set = string.ascii_uppercase + string.digits
+    return (''.join(random.sample(char_set*6, 6)))
+
+## code from snowball_uploader
+def copy_to_snowball(tar_name, org_files_list, tar_num, batched_obj_num, total_tar_size):
+    delimeter = ', '
+    tar_file_size = 0
+    recv_buf = io.BytesIO()
+    collected_files_no = 0
+    if (len(org_files_list) == 0):
+        return 0
+    #Do not perform batch when there is only one file in file_list. Use mpu instead.
+    if (len(org_files_list) == 1):
+        file_name, obj_name, file_size = org_files_list[0]
+        file_meta_data = delimeter.join([file_name, obj_name, str(file_size)])
+        error_log_batch.info(file_meta_data)
+        try:
+            s3_client.upload_file(file_name, bucket_name, obj_name, Config=transfer_config)
+        except Exception as e:
+            snow_transfer_full.error(str(e))
+            error_log_upload.info(file_meta_data)
+        try:
+            s3_client.head_object(Bucket=bucket_name, Key=obj_name)
+            success_log_upload.info(file_meta_data)
+        except:
+            error_log_upload.info(file_meta_data)
+        return 1
+    with alive_bar(len(org_files_list), title=tar_name, stats=False) as bar:
+        with tarfile.open(fileobj=recv_buf, mode='w:' + compression) as tar:
+            for file_name, obj_name, file_size in org_files_list:
+                file_meta_data = delimeter.join([tar_name, file_name, obj_name, str(file_size)])
+                try:
+                    tar.add(file_name, arcname=obj_name)
+                    tar_file_size += file_size
+                    collected_files_no += 1
+                    success_log_batch.info(file_meta_data)
+                except Exception as e:
+                    snow_transfer_full.error(str(e))
+                    error_log_batch.info(file_meta_data)
+                bar()
+    tar_num.set(tar_num.value + 1)
+    batched_obj_num.set(batched_obj_num.value + collected_files_no)
+    tar_meta_data = delimeter.join([tar_name, bucket_name, str(tar_file_size), str(collected_files_no)])            
+    recv_buf.seek(0)
+    try:
+        total_tar_size.set(total_tar_size.value + recv_buf.getbuffer().nbytes)
+        if extract_flag:
+            s3_client.upload_fileobj(recv_buf, bucket_name, tar_name, ExtraArgs={'Metadata': {'snowball-auto-extract': 'true', 'snowball-auto-batch': 'true'},'StorageClass': 'STANDARD'}, Config=transfer_config)
+        else:
+            s3_client.upload_fileobj(recv_buf, bucket_name, tar_name, Config=transfer_config)
+    except Exception as e:
+        snow_transfer_full.error(str(e))
+        error_log_upload.info(tar_meta_data)
+
+    try:
+        s3_client.head_object(Bucket=bucket_name, Key=tar_name)
+        success_log_upload.info(tar_meta_data)
+    except:
+        error_log_upload.info(tar_meta_data)
+    return collected_files_no
+
+def upload_file(q, tar_num, batched_obj_num, total_tar_size):
+    global target_file_prefix
+    while True:
+        org_files_list = q.get()
+        randchar = str(gen_rand_char())
+        if compression == '':
+            tar_name = ('%ssnowball-%s-%s.tar' % (target_file_prefix, current_time, randchar))
+        elif compression == 'gz':
+            tar_name = ('%ssnowball-%s-%s.tgz' % (target_file_prefix, current_time, randchar))
+        if org_files_list == quit_flag:
+            break
+        try:
+            copy_to_snowball(tar_name, org_files_list, tar_num, batched_obj_num, total_tar_size)
+        except Exception as e:
+            snow_transfer_full.error(traceback.format_exc())
+
+# get files to upload
+def upload_get_files(sub_prefix, q):
+    num_obj=0
+    sum_size = 0
+    total_size = 0
+    org_files_list = []
+   # get all files from given directory
+    for r,d,f in os.walk(sub_prefix):
+        for file in f:
+            try:
+                file_name = os.path.join(r,file)
+                # support compatibility of MAC and windows
+                obj_name = conv_obj_name(file_name, prefix_root, sub_prefix)
+                if(os.path.islink(file_name)):
+                    # continue if it is a symlink
+                    continue
+                try:
+                    f_size = os.stat(file_name).st_size
+                except Exception as e:
+                    snow_transfer_full.error(str(e))
+                total_size += f_size
+                file_info = (file_name, obj_name, f_size)
+                if (sum_size + f_size < max_tarfile_size):
+                    org_files_list.append(file_info)
+                    sum_size += f_size
+                else:
+                    #Since upload is much slower than list generation, do not keep pushing list to the queue to avoid OOM
+                    while (q.qsize() > max_process):
+                        pass
+                    # put files into queue in max_tarfile_size
+                    q.put(org_files_list)
+                    org_files_list = [file_info]
+                    sum_size = f_size
+                num_obj += 1
+            except Exception as e:
+                snow_transfer_full.error(str(e))
+ 
+    try:
+        # put remained files into queue
+        q.put(org_files_list)
+    except Exception as e:
+        snow_transfer_full.error(str(e))
+    return (num_obj, total_size)
+
+def upload_file_multi(src_dir, file_list_queue, tar_num, batched_obj_num, total_tar_size):
+    p_list = run_multip(max_process, upload_file, file_list_queue, tar_num, batched_obj_num, total_tar_size)
+    # get object list and ingest to processes
+    num_obj, total_size = upload_get_files(src_dir, file_list_queue)
+    # sending quit_flag and join processes
+    finishq(file_list_queue, p_list)
+    return (num_obj, total_size)
+
+def batch_and_upload():
+    file_list_queue = multiprocessing.Manager().Queue()
+    tar_num = multiprocessing.Manager().Value(int, 0)
+    batched_obj_num = multiprocessing.Manager().Value(int, 0)
+    total_tar_size = multiprocessing.Manager().Value(int, 0)
+    check_srcdir(src_dir)
+    total_file__meta = upload_file_multi(src_dir, file_list_queue, tar_num, batched_obj_num, total_tar_size)
+    total_file_num, total_size = total_file__meta
+    snow_transfer_full.info('%s out of %d files were batched into %s tar files' % (str(batched_obj_num.value), total_file_num, str(tar_num.value)))
+    snow_transfer_full.info('Total size: %s' % (human_readable_size(total_size)))
+    snow_transfer_full.info('Total size after batching: %s' % (human_readable_size(total_tar_size.value)))
+    snow_transfer_full.info('Avg file size before: %s' % (human_readable_size(total_size / total_file_num)))
+    snow_transfer_full.info('Avg file size after: %s' % (human_readable_size(total_tar_size.value / ((total_file_num - batched_obj_num.value) + tar_num.value))))
+
+
 # start main function
 if __name__ == '__main__':
     setup_config(args.cmd)
     create_logger()
-    snow_transfer_full.info('Program started!')
     print_setting()
     #valid_setting()
     if args.cmd == copy_command:
-        pass
+        snow_transfer_full.info('Batching and uploading files...')
+        set_up_transfer_config()
+        batch_and_upload()
+        
     elif args.cmd == partition_command:
         gen_filelist(src_dir)
     snow_transfer_full.info('Program finished!')
