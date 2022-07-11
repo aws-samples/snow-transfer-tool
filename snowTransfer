@@ -1,4 +1,5 @@
 import argparse
+from audioop import mul
 import boto3
 import warnings
 import configparser
@@ -20,13 +21,13 @@ from datetime import datetime
 warnings.filterwarnings('ignore', message='Unverified HTTPS request')
 
 quit_flag = 'DONE'
-current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
 partition_command = 'gen_list'
 copy_command = 'upload_sbe'
 ## treating arguments
 # create the top-level parser
 parser = argparse.ArgumentParser(prog='SnowTransferTool')
-subparsers = parser.add_subparsers(dest="cmd")
+subparsers = parser.add_subparsers(dest='cmd')
 # create the parser for the "gen_list" command
 parser_a = subparsers.add_parser(partition_command, help=partition_command + ' --help')
 parser_a.add_argument('--config_file', help='path of config file e) /tmp/config. If this argument is not present in command line, --src_dir, --filelist_dir, --partition_size, and --log_dir are required', action='store', default='')
@@ -44,7 +45,7 @@ parser_b.add_argument('--log_dir', help='directory that stores log files e)/tmp/
 parser_b.add_argument('--profile_name', help='aws_profile_name e) sbe1', action='store', default='default')
 parser_b.add_argument('--prefix_root', help='prefix root e) dir1/', action='store', default='')
 parser_b.add_argument('--max_process', help='max number of thread e) 5', action='store', default=5, type=int)
-parser_b.add_argument('--max_tarfile_size', help='size limit of batched files e) 1Gb', action='store', default="1Gb")
+parser_b.add_argument('--max_tarfile_size', help='size limit of batched files e) 1Gb', action='store', default='1Gb')
 parser_b.add_argument('--compression', help='True|False compress file to "gz" format', action='store', default='False', type=bool)
 parser_b.add_argument('--extract_flag', help='True|False; Set the autoextract flag', action='store', default='True', type=bool)
 parser_b.add_argument('--target_file_prefix', help='prefix of the target file we are creating into the snowball', action='store', default='')
@@ -101,7 +102,7 @@ def create_logger():
     try:
         os.makedirs(log_dir, exist_ok=True)
     except: 
-        raise ValueError("Error while trying to make directory:" + log_dir)
+        raise ValueError('Error while trying to make directory:' + log_dir)
     error_batch = log_dir + '/error-batch-%s.log' % current_time
     success_batch = log_dir + '/success-batch-%s.log' % current_time
     error_upload = log_dir + '/error-upload-%s.log' % current_time
@@ -130,7 +131,7 @@ def setup_config(cmd):
             list_of_globals['log_dir'] = config['GENLIST']['log_dir']
          # Check if the filelist_dir and partition_size were correctly set up
         if (not src_dir or not filelist_dir or not partition_size):
-            raise ValueError("src_dir, filelist_dir and partition_size must be specified!")
+            raise ValueError('src_dir, filelist_dir and partition_size must be specified!')
         output_config = f'''Command: {cmd}
 src_dir: {src_dir}
 filelist_dir: {filelist_dir}
@@ -151,14 +152,14 @@ partition_size: {str(partition_size)}'''
             list_of_globals['extract_flag'] = eval(config['UPLOAD_SBE']['extract_flag'].capitalize())
             list_of_globals['log_dir'] = config['UPLOAD_SBE']['log_dir']
         if (not src_dir or not bucket_name or not endpoint or not log_dir):
-            raise ValueError("src_dir, bucket_name, endpoint and log_dir must be specified!")
+            raise ValueError('src_dir, bucket_name, endpoint and log_dir must be specified!')
 
 def human_readable_size(size, decimal_places=2):
     for unit in ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB']:
         if size < 1024.0 or unit == 'PiB':
             break
         size /= 1024.0
-    return f"{size:.{decimal_places}f} {unit}"
+    return f'{size:.{decimal_places}f} {unit}'
 
 def print_setting():
     if (args.cmd == partition_command):
@@ -189,32 +190,33 @@ def write_to_file(dict):
     for key, value in dict.items():
         with open(key, 'a') as f:
             for line in value:
-                f.write("%s\n" %line)
+                f.write('%s\n' %line)
     return 0
 
 #Error handler for ``shutil.rmtree``
 def handle_rmtree_err(func, path, exc_info):
-    snow_transfer_full.error("Error while trying to clean: %s\n%s" % (path, exc_info))
+    snow_transfer_full.error('Error while trying to clean: %s\n%s' % (path, exc_info))
     exit()
 
 def gen_filelist(src):
     sum_size = 0
     fl_prefix = 'fl_'
+    fl_type = '.txt'
     fl_index = 1
     delimiter = ', '
     num_file_processed = 0
     file_target_mp = dict()
-    customer_input = input ("This operation will clean all the contents in: %s. Continue? Y/N\n" % filelist_dir)
+    customer_input = input ('This operation will clean all the contents in: %s. Continue? Y/N\n' % filelist_dir)
     if (customer_input[0].lower() != 'y'):
         exit()
     shutil.rmtree(filelist_dir, ignore_errors=False, onerror=handle_rmtree_err)
     try:
         os.makedirs(filelist_dir)
     except: 
-        raise ValueError("Error while trying to make directory:" + filelist_dir)
+        raise ValueError('Error while trying to make directory:' + filelist_dir)
     snow_transfer_full.info('generating file list by size %s bytes' % partition_size)
     for r,d,f in os.walk(src):
-        fl_name = filelist_dir + '/' + fl_prefix + str(fl_index) + ".txt"
+        fl_name = filelist_dir + '/' + fl_prefix + str(fl_index) + fl_type
         for file in f:
             file_name = os.path.join(r,file)
             if(os.path.islink(file_name)):
@@ -231,7 +233,7 @@ def gen_filelist(src):
             if partition_size < sum_size:
                 if (sum_size - f_size != 0):
                     fl_index += 1
-                    fl_name = filelist_dir + '/' + fl_prefix + str(fl_index) + ".txt"
+                    fl_name = filelist_dir + '/' + fl_prefix + str(fl_index) + fl_type
                 snow_transfer_full.info('Part #%d: size = %d' % (fl_index - 1, sum_size - f_size))
                 sum_size = f_size
             if fl_name not in file_target_mp:
@@ -244,7 +246,7 @@ def gen_filelist(src):
                 write_to_file(file_target_mp)
                 file_target_mp = dict()
     write_to_file(file_target_mp)
-    fl_name = filelist_dir + '/' + fl_prefix + str(fl_index) + ".txt"
+    fl_name = filelist_dir + '/' + fl_prefix + str(fl_index) + fl_type
     snow_transfer_full.info('Part #%d: size = %d' % (fl_index, sum_size))
     snow_transfer_full.info('Number of scanned file: %d, symlink and empty folders were ignored', num_file_processed)
     snow_transfer_full.info('File lists are generated!!')
@@ -254,7 +256,7 @@ def gen_filelist(src):
 def set_up_transfer_config():
     global mpu_max_concurrency, transfer_config, s3_client
     if os.name == 'posix':
-        multiprocessing.set_start_method("fork")
+        multiprocessing.set_start_method('fork')
     mpu_max_concurrency = 10
     transfer_config = TransferConfig(max_concurrency=mpu_max_concurrency)
     # S3 session
@@ -264,13 +266,13 @@ def set_up_transfer_config():
 # check source directory exist
 def check_srcdir(src_dir):
     if not os.path.isdir(src_dir):
-        raise IOError("source directory not found: " + src_dir)
+        raise IOError('Source directory not found: ' + src_dir)
 
 # execute multi-threading
-def run_multip(max_process, exec_func, q, tar_num, batched_obj_num, total_tar_size):
+def run_multip(max_process, exec_func, q, job_meta):
     p_list = []
     for i in range(max_process):
-        p = multiprocessing.Process(target = exec_func, args=(q, tar_num, batched_obj_num, total_tar_size))
+        p = multiprocessing.Process(target = exec_func, args=(q, job_meta))
         p_list.append(p)
         p.daemon = True
         p.start()
@@ -303,7 +305,7 @@ def gen_rand_char():
     return (''.join(random.sample(char_set*6, 6)))
 
 ## code from snowball_uploader
-def copy_to_snowball(tar_name, org_files_list, tar_num, batched_obj_num, total_tar_size):
+def copy_to_snowball(tar_name, org_files_list, job_meta):
     delimeter = ', '
     tar_file_size = 0
     recv_buf = io.BytesIO()
@@ -323,6 +325,7 @@ def copy_to_snowball(tar_name, org_files_list, tar_num, batched_obj_num, total_t
         try:
             s3_client.head_object(Bucket=bucket_name, Key=obj_name)
             success_log_upload.info(file_meta_data)
+            job_meta['uploaded_obj_num'] += 1
         except:
             error_log_upload.info(file_meta_data)
         return 1
@@ -339,12 +342,12 @@ def copy_to_snowball(tar_name, org_files_list, tar_num, batched_obj_num, total_t
                     snow_transfer_full.error(str(e))
                     error_log_batch.info(file_meta_data)
                 bar()
-    tar_num.set(tar_num.value + 1)
-    batched_obj_num.set(batched_obj_num.value + collected_files_no)
-    tar_meta_data = delimeter.join([tar_name, bucket_name, str(tar_file_size), str(collected_files_no)])            
     recv_buf.seek(0)
+    job_meta['tar_num'] += 1
+    job_meta['batched_obj_num'] += collected_files_no            
+    job_meta['total_tar_size'] += + recv_buf.getbuffer().nbytes
+    tar_meta_data = delimeter.join([tar_name, bucket_name, str(tar_file_size), str(collected_files_no)])
     try:
-        total_tar_size.set(total_tar_size.value + recv_buf.getbuffer().nbytes)
         if extract_flag:
             s3_client.upload_fileobj(recv_buf, bucket_name, tar_name, ExtraArgs={'Metadata': {'snowball-auto-extract': 'true', 'snowball-auto-batch': 'true'},'StorageClass': 'STANDARD'}, Config=transfer_config)
         else:
@@ -356,11 +359,12 @@ def copy_to_snowball(tar_name, org_files_list, tar_num, batched_obj_num, total_t
     try:
         s3_client.head_object(Bucket=bucket_name, Key=tar_name)
         success_log_upload.info(tar_meta_data)
+        job_meta['uploaded_obj_num'] += 1
     except:
         error_log_upload.info(tar_meta_data)
     return collected_files_no
 
-def upload_file(q, tar_num, batched_obj_num, total_tar_size):
+def upload_file(q, job_meta):
     global target_file_prefix
     while True:
         org_files_list = q.get()
@@ -372,15 +376,13 @@ def upload_file(q, tar_num, batched_obj_num, total_tar_size):
         if org_files_list == quit_flag:
             break
         try:
-            copy_to_snowball(tar_name, org_files_list, tar_num, batched_obj_num, total_tar_size)
+            copy_to_snowball(tar_name, org_files_list, job_meta)
         except Exception as e:
             snow_transfer_full.error(traceback.format_exc())
 
 # get files to upload
-def upload_get_files(sub_prefix, q):
-    num_obj=0
+def upload_get_files(sub_prefix, q, job_meta):
     sum_size = 0
-    total_size = 0
     org_files_list = []
    # get all files from given directory
     for r,d,f in os.walk(sub_prefix):
@@ -396,7 +398,7 @@ def upload_get_files(sub_prefix, q):
                     f_size = os.stat(file_name).st_size
                 except Exception as e:
                     snow_transfer_full.error(str(e))
-                total_size += f_size
+                job_meta['total_size'] += f_size
                 file_info = (file_name, obj_name, f_size)
                 if (sum_size + f_size < max_tarfile_size):
                     org_files_list.append(file_info)
@@ -409,7 +411,7 @@ def upload_get_files(sub_prefix, q):
                     q.put(org_files_list)
                     org_files_list = [file_info]
                     sum_size = f_size
-                num_obj += 1
+                job_meta['total_file_num'] += 1
             except Exception as e:
                 snow_transfer_full.error(str(e))
  
@@ -418,29 +420,31 @@ def upload_get_files(sub_prefix, q):
         q.put(org_files_list)
     except Exception as e:
         snow_transfer_full.error(str(e))
-    return (num_obj, total_size)
 
-def upload_file_multi(src_dir, file_list_queue, tar_num, batched_obj_num, total_tar_size):
-    p_list = run_multip(max_process, upload_file, file_list_queue, tar_num, batched_obj_num, total_tar_size)
+def upload_file_multi(src_dir, file_list_queue, job_meta):
+    p_list = run_multip(max_process, upload_file, file_list_queue, job_meta)
     # get object list and ingest to processes
-    num_obj, total_size = upload_get_files(src_dir, file_list_queue)
+    upload_get_files(src_dir, file_list_queue, job_meta)
     # sending quit_flag and join processes
     finishq(file_list_queue, p_list)
-    return (num_obj, total_size)
 
 def batch_and_upload():
     file_list_queue = multiprocessing.Manager().Queue()
-    tar_num = multiprocessing.Manager().Value(int, 0)
-    batched_obj_num = multiprocessing.Manager().Value(int, 0)
-    total_tar_size = multiprocessing.Manager().Value(int, 0)
-    check_srcdir(src_dir)
-    total_file__meta = upload_file_multi(src_dir, file_list_queue, tar_num, batched_obj_num, total_tar_size)
-    total_file_num, total_size = total_file__meta
-    snow_transfer_full.info('%s out of %d files were batched into %s tar files' % (str(batched_obj_num.value), total_file_num, str(tar_num.value)))
-    snow_transfer_full.info('Total size: %s' % (human_readable_size(total_size)))
-    snow_transfer_full.info('Total size after batching: %s' % (human_readable_size(total_tar_size.value)))
-    snow_transfer_full.info('Avg file size before: %s' % (human_readable_size(total_size / total_file_num)))
-    snow_transfer_full.info('Avg file size after: %s' % (human_readable_size(total_tar_size.value / ((total_file_num - batched_obj_num.value) + tar_num.value))))
+    job_meta = multiprocessing.Manager().dict()
+    job_meta['total_file_num'] = 0
+    job_meta['total_size'] = 0
+    job_meta['tar_num'] = 0
+    job_meta['batched_obj_num'] = 0
+    job_meta['total_tar_size'] = 0
+    job_meta['uploaded_obj_num'] = 0
+    upload_file_multi(src_dir, file_list_queue, job_meta)
+    snow_transfer_full.info('%d out of %d files were batched into %d tar files' % (job_meta['batched_obj_num'], job_meta['total_file_num'], job_meta['tar_num']))
+    snow_transfer_full.info('Total size: %s' % (human_readable_size(job_meta['total_size'])))
+    snow_transfer_full.info('Total size after batching: %s' % (human_readable_size(job_meta['total_tar_size'])))
+    if (job_meta['total_file_num'] != 0):
+        snow_transfer_full.info('Avg file size before: %s' % (human_readable_size(job_meta['total_size'] / job_meta['total_file_num'])))
+        snow_transfer_full.info('Avg file size after: %s' % (human_readable_size(job_meta['total_tar_size'] / ((job_meta['total_file_num'] - job_meta['batched_obj_num']) + job_meta['tar_num']))))
+    snow_transfer_full.info('%d files were uploaded' % (job_meta['uploaded_obj_num']))
 
 
 # start main function
@@ -452,6 +456,7 @@ if __name__ == '__main__':
     if args.cmd == copy_command:
         snow_transfer_full.info('Batching and uploading files...')
         set_up_transfer_config()
+        check_srcdir(src_dir)
         batch_and_upload()
         
     elif args.cmd == partition_command:
