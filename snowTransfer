@@ -1,3 +1,4 @@
+#!/usr/local/bin/python3
 import argparse
 from audioop import mul
 import boto3
@@ -14,9 +15,9 @@ import string
 import sys
 import tarfile
 import traceback
-from alive_progress import alive_bar
 from boto3.s3.transfer import TransferConfig
 from datetime import datetime
+from tqdm import tqdm
 
 warnings.filterwarnings('ignore', message='Unverified HTTPS request')
 
@@ -30,15 +31,15 @@ parser = argparse.ArgumentParser(prog='SnowTransferTool')
 subparsers = parser.add_subparsers(dest='cmd')
 # create the parser for the "gen_list" command
 parser_a = subparsers.add_parser(partition_command, help=partition_command + ' --help')
-parser_a.add_argument('--config_file', help='path of config file e) /tmp/config. If this argument is not present in command line, --src_dir, --filelist_dir, --partition_size, and --log_dir are required', action='store', default='')
-parser_a.add_argument('--src_dir', help='source directory e) /data/dir1/', action='store', required='--config_file' not in sys.argv)
+parser_a.add_argument('--config_file', help='path of config file e) /tmp/config. If this argument is not present in command line, --src, --filelist_dir, --partition_size, and --log_dir are required', action='store', default='')
+parser_a.add_argument('--src', help='source directory e) /data/dir1/', action='store', required='--config_file' not in sys.argv)
 parser_a.add_argument('--filelist_dir', help='output destination e) /tmp/file_list/', action='store', required='--config_file' not in sys.argv)
 parser_a.add_argument('--partition_size', help='size limit for each partition e) 10Tb', action='store', required='--config_file' not in sys.argv, default="10Tb")
 parser_a.add_argument('--log_dir', help='directory that stores log files e)/tmp/JID01', action='store', required='--config_file' not in sys.argv, default='/tmp/snowtransfertool/log')
 # create the parser for the "upload_sbe" command
 parser_b = subparsers.add_parser(copy_command, help=copy_command + ' --help')
-parser_b.add_argument('--config_file', help='path of config file e) /tmp/config. If this argument is not present in command line, --src_dir, --bucket_name, --endpoint, and --log_dir are required', action='store', default='')
-parser_b.add_argument('--src_dir', help='source directory e) /data/dir1/', action='store', required='--config_file' not in sys.argv)
+parser_b.add_argument('--config_file', help='path of config file e) /tmp/config. If this argument is not present in command line, --src, --bucket_name, --endpoint, and --log_dir are required', action='store', default='')
+parser_b.add_argument('--src', help='source directory e) /data/dir1/', action='store', required='--config_file' not in sys.argv)
 parser_b.add_argument('--bucket_name', help='your bucket name e) your-bucket', action='store', required='--config_file' not in sys.argv)
 parser_b.add_argument('--endpoint', help='snowball endpoint e) http://10.10.10.10:8080', action='store', required='--config_file' not in sys.argv)
 parser_b.add_argument('--log_dir', help='directory that stores log files e)/tmp/JID01', action='store', required='--config_file' not in sys.argv, default='/tmp/snowtransfertool/log')
@@ -62,10 +63,8 @@ positional arguments:
     print(help_mesg)
     exit()
 
-print(args)
-
-# src and log dir are required in both commands.
-src_dir = args.src_dir
+# src and log_dir are required in both commands.
+src = args.src
 log_dir = args.log_dir
 if (args.cmd == partition_command):
     #config for gen_list
@@ -120,39 +119,29 @@ def create_logger():
 log_level = logging.INFO ## DEBUG, INFO, WARNING, ERROR
 
 def setup_config(cmd):
+    if(not bool(args.config_file)):
+        return
     list_of_globals = globals()
     config = configparser.ConfigParser()
     config.read(args.config_file)
     if (cmd == partition_command):
-        if (bool(args.config_file)):
-            list_of_globals['src_dir'] = config['GENLIST']['src_dir']
-            list_of_globals['filelist_dir'] = config['GENLIST']['filelist_dir']
-            list_of_globals['partition_size'] = humanfriendly.parse_size(config['GENLIST']['partition_size'], binary=True)
-            list_of_globals['log_dir'] = config['GENLIST']['log_dir']
-         # Check if the filelist_dir and partition_size were correctly set up
-        if (not src_dir or not filelist_dir or not partition_size):
-            raise ValueError('src_dir, filelist_dir and partition_size must be specified!')
-        output_config = f'''Command: {cmd}
-src_dir: {src_dir}
-filelist_dir: {filelist_dir}
-partition_size: {str(partition_size)}'''
-        print(output_config)
+        list_of_globals['src'] = config['GENLIST']['src']
+        list_of_globals['filelist_dir'] = config['GENLIST']['filelist_dir']
+        list_of_globals['partition_size'] = humanfriendly.parse_size(config['GENLIST']['partition_size'], binary=True)
+        list_of_globals['log_dir'] = config['GENLIST']['log_dir']
     elif (cmd == copy_command):
         #If the config file was provided, overwrite the default setting with values in config file.
-        if (bool(args.config_file)):
-            list_of_globals['src_dir'] = config['UPLOAD_SBE']['src_dir']
-            list_of_globals['endpoint'] = config['UPLOAD_SBE']['endpoint']
-            list_of_globals['bucket_name'] = config['UPLOAD_SBE']['bucket_name']
-            list_of_globals['prefix_root'] = config['UPLOAD_SBE']['prefix_root']
-            list_of_globals['profile_name'] = config['UPLOAD_SBE']['profile_name']
-            list_of_globals['max_process'] = int(config['UPLOAD_SBE']['max_process'])
-            list_of_globals['max_tarfile_size'] = humanfriendly.parse_size(config['UPLOAD_SBE']['max_tarfile_size'], binary=True)
-            list_of_globals['compression'] = 'gz' if eval(config['UPLOAD_SBE']['compression'].capitalize()) else ''
-            list_of_globals['target_file_prefix'] = config['UPLOAD_SBE']['target_file_prefix']
-            list_of_globals['extract_flag'] = eval(config['UPLOAD_SBE']['extract_flag'].capitalize())
-            list_of_globals['log_dir'] = config['UPLOAD_SBE']['log_dir']
-        if (not src_dir or not bucket_name or not endpoint or not log_dir):
-            raise ValueError('src_dir, bucket_name, endpoint and log_dir must be specified!')
+        list_of_globals['src'] = config['UPLOAD_SBE']['src']
+        list_of_globals['endpoint'] = config['UPLOAD_SBE']['endpoint']
+        list_of_globals['bucket_name'] = config['UPLOAD_SBE']['bucket_name']
+        list_of_globals['prefix_root'] = config['UPLOAD_SBE']['prefix_root']
+        list_of_globals['profile_name'] = config['UPLOAD_SBE']['profile_name']
+        list_of_globals['max_process'] = int(config['UPLOAD_SBE']['max_process'])
+        list_of_globals['max_tarfile_size'] = humanfriendly.parse_size(config['UPLOAD_SBE']['max_tarfile_size'], binary=True)
+        list_of_globals['compression'] = 'gz' if eval(config['UPLOAD_SBE']['compression'].capitalize()) else ''
+        list_of_globals['target_file_prefix'] = config['UPLOAD_SBE']['target_file_prefix']
+        list_of_globals['extract_flag'] = eval(config['UPLOAD_SBE']['extract_flag'].capitalize())
+        list_of_globals['log_dir'] = config['UPLOAD_SBE']['log_dir']
 
 def human_readable_size(size, decimal_places=2):
     for unit in ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB']:
@@ -161,11 +150,22 @@ def human_readable_size(size, decimal_places=2):
         size /= 1024.0
     return f'{size:.{decimal_places}f} {unit}'
 
+def valid_setting(cmd):
+    if (cmd == partition_command):
+         # Check if the filelist_dir and partition_size were correctly set up
+        if (not src or not filelist_dir or not partition_size or not log_dir):
+            raise ValueError('src, filelist_dir, partition_size and log_dir must be specified!')
+        if not os.path.isdir(src):
+            raise IOError('Source directory not found: ' + src)
+    elif (cmd == copy_command):    
+        if (not src or not bucket_name or not endpoint or not log_dir):
+            raise ValueError('src, bucket_name, endpoint and log_dir must be specified!')
+
 def print_setting():
     if (args.cmd == partition_command):
         output_config = f'''
 Command: {args.cmd}
-src_dir: {src_dir}
+src: {src}
 filelist_dir: {filelist_dir}
 partition_size: {human_readable_size(partition_size)}
 log_dir: {log_dir}'''
@@ -173,7 +173,7 @@ log_dir: {log_dir}'''
     elif (args.cmd == copy_command):
         output_config = f'''
 command: {args.cmd}
-src_dir: {src_dir}
+src: {src}
 endpoint: {endpoint}
 bucket_name: {bucket_name}
 log_dir: {log_dir}
@@ -195,15 +195,18 @@ def write_to_file(dict):
 
 #Error handler for ``shutil.rmtree``
 def handle_rmtree_err(func, path, exc_info):
+    if not os.path.isdir(path):
+        snow_transfer_full.info('Directory does not exsit, creating one...')
+        return
     snow_transfer_full.error('Error while trying to clean: %s\n%s' % (path, exc_info))
-    exit()
+    raise ValueError()
 
 def gen_filelist(src):
     sum_size = 0
     fl_prefix = 'fl_'
     fl_type = '.txt'
     fl_index = 1
-    delimiter = ', '
+    delimiter = ' '
     num_file_processed = 0
     file_target_mp = dict()
     customer_input = input ('This operation will clean all the contents in: %s. Continue? Y/N\n' % filelist_dir)
@@ -213,7 +216,8 @@ def gen_filelist(src):
     try:
         os.makedirs(filelist_dir)
     except: 
-        raise ValueError('Error while trying to make directory:' + filelist_dir)
+        snow_transfer_full.error('Error while trying to make directory:' + filelist_dir)
+        raise ValueError()
     snow_transfer_full.info('generating file list by size %s bytes' % partition_size)
     for r,d,f in os.walk(src):
         fl_name = filelist_dir + '/' + fl_prefix + str(fl_index) + fl_type
@@ -262,11 +266,6 @@ def set_up_transfer_config():
     # S3 session
     session = boto3.Session(profile_name=profile_name)
     s3_client = session.client('s3', endpoint_url=endpoint, verify=False)
-
-# check source directory exist
-def check_srcdir(src_dir):
-    if not os.path.isdir(src_dir):
-        raise IOError('Source directory not found: ' + src_dir)
 
 # execute multi-threading
 def run_multip(max_process, exec_func, q, job_meta):
@@ -329,19 +328,19 @@ def copy_to_snowball(tar_name, org_files_list, job_meta):
         except:
             error_log_upload.info(file_meta_data)
         return 1
-    with alive_bar(len(org_files_list), title=tar_name, stats=False) as bar:
-        with tarfile.open(fileobj=recv_buf, mode='w:' + compression) as tar:
-            for file_name, obj_name, file_size in org_files_list:
-                file_meta_data = delimeter.join([tar_name, file_name, obj_name, str(file_size)])
-                try:
-                    tar.add(file_name, arcname=obj_name)
-                    tar_file_size += file_size
-                    collected_files_no += 1
-                    success_log_batch.info(file_meta_data)
-                except Exception as e:
-                    snow_transfer_full.error(str(e))
-                    error_log_batch.info(file_meta_data)
-                bar()
+
+    with tarfile.open(fileobj=recv_buf, mode='w:' + compression) as tar:
+        for file_name, obj_name, file_size in tqdm(org_files_list, desc=tar_name, bar_format='{l_bar}{bar:50}| {n_fmt}/{total_fmt}'):
+            file_meta_data = delimeter.join([tar_name, file_name, obj_name, str(file_size)])
+            try:
+                tar.add(file_name, arcname=obj_name)
+                tar_file_size += file_size
+                collected_files_no += 1
+                success_log_batch.info(file_meta_data)
+            except Exception as e:
+                snow_transfer_full.error(str(e))
+                error_log_batch.info(file_meta_data)
+
     recv_buf.seek(0)
     job_meta['tar_num'] += 1
     job_meta['batched_obj_num'] += collected_files_no            
@@ -421,10 +420,10 @@ def upload_get_files(sub_prefix, q, job_meta):
     except Exception as e:
         snow_transfer_full.error(str(e))
 
-def upload_file_multi(src_dir, file_list_queue, job_meta):
+def upload_file_multi(src, file_list_queue, job_meta):
     p_list = run_multip(max_process, upload_file, file_list_queue, job_meta)
     # get object list and ingest to processes
-    upload_get_files(src_dir, file_list_queue, job_meta)
+    upload_get_files(src, file_list_queue, job_meta)
     # sending quit_flag and join processes
     finishq(file_list_queue, p_list)
 
@@ -437,7 +436,7 @@ def batch_and_upload():
     job_meta['batched_obj_num'] = 0
     job_meta['total_tar_size'] = 0
     job_meta['uploaded_obj_num'] = 0
-    upload_file_multi(src_dir, file_list_queue, job_meta)
+    upload_file_multi(src, file_list_queue, job_meta)
     snow_transfer_full.info('%d out of %d files were batched into %d tar files' % (job_meta['batched_obj_num'], job_meta['total_file_num'], job_meta['tar_num']))
     snow_transfer_full.info('Total size: %s' % (human_readable_size(job_meta['total_size'])))
     snow_transfer_full.info('Total size after batching: %s' % (human_readable_size(job_meta['total_tar_size'])))
@@ -446,19 +445,18 @@ def batch_and_upload():
         snow_transfer_full.info('Avg file size after: %s' % (human_readable_size(job_meta['total_tar_size'] / ((job_meta['total_file_num'] - job_meta['batched_obj_num']) + job_meta['tar_num']))))
     snow_transfer_full.info('%d files were uploaded' % (job_meta['uploaded_obj_num']))
 
-
+# set up config outside of main function to support Windows "spawn" mechanism of starting new processes 
+setup_config(args.cmd)
+create_logger()
+if (args.cmd == copy_command):
+    set_up_transfer_config()
 # start main function
 if __name__ == '__main__':
-    setup_config(args.cmd)
-    create_logger()
     print_setting()
-    #valid_setting()
+    valid_setting(args.cmd)
     if args.cmd == copy_command:
         snow_transfer_full.info('Batching and uploading files...')
-        set_up_transfer_config()
-        check_srcdir(src_dir)
         batch_and_upload()
-        
     elif args.cmd == partition_command:
-        gen_filelist(src_dir)
+        gen_filelist(src)
     snow_transfer_full.info('Program finished!')
