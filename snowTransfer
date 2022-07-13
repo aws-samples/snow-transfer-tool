@@ -1,4 +1,4 @@
-#!/usr/local/bin/python3
+#!/usr/bin/env python3
 import argparse
 from audioop import mul
 import boto3
@@ -288,8 +288,6 @@ def conv_obj_name(file_name, prefix_root, sub_prefix):
         pass
     elif prefix_root[-1] != '/':
         prefix_root = prefix_root + '/'
-    else:
-        prefix_root = prefix_root
     if sub_prefix[-1] != '/':
         sub_prefix = sub_prefix + '/'
     if os.name == 'nt':
@@ -379,51 +377,75 @@ def upload_file(q, job_meta):
         except Exception as e:
             snow_transfer_full.error(traceback.format_exc())
 
+def push_file_to_list(sum_size, org_files_list, file_name, sub_prefix, q, job_meta, src_dir=""):
+    try:
+        sub_prefix = src_dir if src_dir else sub_prefix
+        obj_name = conv_obj_name(file_name, prefix_root, sub_prefix)
+        if(os.path.islink(file_name)):
+            # continue if it is a symlink
+            return
+        try:
+            f_size = os.stat(file_name).st_size
+        except Exception as e:
+            snow_transfer_full.error(str(e))
+        job_meta['total_size'] += f_size
+        file_info = (file_name, obj_name, f_size)
+        if (sum_size + f_size < max_tarfile_size):
+            org_files_list.append(file_info)
+            sum_size += f_size
+        else:
+            #Since upload is much slower than list generation, do not keep pushing list to the queue to avoid OOM
+            while (q.qsize() > max_process):
+                pass
+            # put files into queue in max_tarfile_size
+            q.put(org_files_list)
+            org_files_list = [file_info]
+            sum_size = f_size
+        job_meta['total_file_num'] += 1
+    except Exception as e:
+        snow_transfer_full.error(str(e))
+    return (org_files_list, sum_size)
+
 # get files to upload
 def upload_get_files(sub_prefix, q, job_meta):
     sum_size = 0
     org_files_list = []
+    if(os.path.isfile(sub_prefix)):
+        src_dir = input ('It appears that you are using a file instead of a directory as src, please set the file path prefix that you want to ignore when uploading to snowball:\n')
+        with open(sub_prefix) as src_file:
+            while True:
+                file_name = src_file.readline().split(' ')[0]
+                if not file_name:
+                    break
+                if(os.path.isfile(file_name)):
+                    org_files_list, sum_size = push_file_to_list(sum_size, org_files_list, file_name, sub_prefix, q, job_meta, src_dir)
+            # put remained files into queue
+            q.put(org_files_list)
+        return     
+
    # get all files from given directory
     for r,d,f in os.walk(sub_prefix):
         for file in f:
-            try:
-                file_name = os.path.join(r,file)
-                # support compatibility of MAC and windows
-                obj_name = conv_obj_name(file_name, prefix_root, sub_prefix)
-                if(os.path.islink(file_name)):
-                    # continue if it is a symlink
-                    continue
-                try:
-                    f_size = os.stat(file_name).st_size
-                except Exception as e:
-                    snow_transfer_full.error(str(e))
-                job_meta['total_size'] += f_size
-                file_info = (file_name, obj_name, f_size)
-                if (sum_size + f_size < max_tarfile_size):
-                    org_files_list.append(file_info)
-                    sum_size += f_size
-                else:
-                    #Since upload is much slower than list generation, do not keep pushing list to the queue to avoid OOM
-                    while (q.qsize() > max_process):
-                        pass
-                    # put files into queue in max_tarfile_size
-                    q.put(org_files_list)
-                    org_files_list = [file_info]
-                    sum_size = f_size
-                job_meta['total_file_num'] += 1
-            except Exception as e:
-                snow_transfer_full.error(str(e))
- 
-    try:
-        # put remained files into queue
-        q.put(org_files_list)
-    except Exception as e:
-        snow_transfer_full.error(str(e))
+            file_name = os.path.join(r,file)
+            org_files_list, sum_size = push_file_to_list(sum_size, org_files_list, file_name, sub_prefix, q, job_meta)
+    # put remained files into queue
+    q.put(org_files_list)
+
+last = 0
+def print_progress(q, job_meta):
+    global last
+    while True:
+        if (job_meta['uploaded_obj_num'] > last):
+            print(job_meta['uploaded_obj_num'])
+            last = job_meta['uploaded_obj_num']
 
 def upload_file_multi(src, file_list_queue, job_meta):
     p_list = run_multip(max_process, upload_file, file_list_queue, job_meta)
     # get object list and ingest to processes
     upload_get_files(src, file_list_queue, job_meta)
+    p = multiprocessing.Process(target = print_progress, args=(file_list_queue, job_meta))
+    p.daemon = False
+    p.start()
     # sending quit_flag and join processes
     finishq(file_list_queue, p_list)
 
@@ -442,7 +464,7 @@ def batch_and_upload():
     snow_transfer_full.info('Total size after batching: %s' % (human_readable_size(job_meta['total_tar_size'])))
     if (job_meta['total_file_num'] != 0):
         snow_transfer_full.info('Avg file size before: %s' % (human_readable_size(job_meta['total_size'] / job_meta['total_file_num'])))
-        snow_transfer_full.info('Avg file size after: %s' % (human_readable_size(job_meta['total_tar_size'] / ((job_meta['total_file_num'] - job_meta['batched_obj_num']) + job_meta['tar_num']))))
+        snow_transfer_full.info('Avg file size after: %s' % (human_readable_size(job_meta['total_size'] / ((job_meta['total_file_num'] - job_meta['batched_obj_num']) + job_meta['tar_num']))))
     snow_transfer_full.info('%d files were uploaded' % (job_meta['uploaded_obj_num']))
 
 # set up config outside of main function to support Windows "spawn" mechanism of starting new processes 
