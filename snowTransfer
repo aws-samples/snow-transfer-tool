@@ -431,21 +431,10 @@ def upload_get_files(sub_prefix, q, job_meta):
     # put remained files into queue
     q.put(org_files_list)
 
-last = 0
-def print_progress(q, job_meta):
-    global last
-    while True:
-        if (job_meta['uploaded_obj_num'] > last):
-            print(job_meta['uploaded_obj_num'])
-            last = job_meta['uploaded_obj_num']
-
 def upload_file_multi(src, file_list_queue, job_meta):
     p_list = run_multip(max_process, upload_file, file_list_queue, job_meta)
     # get object list and ingest to processes
     upload_get_files(src, file_list_queue, job_meta)
-    p = multiprocessing.Process(target = print_progress, args=(file_list_queue, job_meta))
-    p.daemon = False
-    p.start()
     # sending quit_flag and join processes
     finishq(file_list_queue, p_list)
 
