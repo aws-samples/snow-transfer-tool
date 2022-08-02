@@ -61,7 +61,7 @@ positional arguments:
     {partition_command}            {partition_command} --help
     {copy_command}          {copy_command} --help'''
     print(help_mesg)
-    exit()
+    sys.exit()
 
 # src and log_dir are required in both commands.
 src = args.src
@@ -119,8 +119,10 @@ def create_logger():
 log_level = logging.INFO ## DEBUG, INFO, WARNING, ERROR
 
 def setup_config(cmd):
-    if(not bool(args.config_file)):
+    if (not bool(args.config_file)):
         return
+    if (not os.path.isfile(args.config_file)):
+        raise IOError('Config file not found! ' + args.config_file)
     list_of_globals = globals()
     config = configparser.ConfigParser()
     config.read(args.config_file)
@@ -211,7 +213,7 @@ def gen_filelist(src):
     file_target_mp = dict()
     customer_input = input ('This operation will clean all the contents in: %s. Continue? Y/N\n' % filelist_dir)
     if (customer_input[0].lower() != 'y'):
-        exit()
+        sys.exit()
     shutil.rmtree(filelist_dir, ignore_errors=False, onerror=handle_rmtree_err)
     try:
         os.makedirs(filelist_dir)
@@ -223,7 +225,7 @@ def gen_filelist(src):
         fl_name = filelist_dir + '/' + fl_prefix + str(fl_index) + fl_type
         for file in f:
             file_name = os.path.join(r,file)
-            if(os.path.islink(file_name)):
+            if (os.path.islink(file_name)):
                 # continue if it is a symlink
                 continue
             try:
@@ -322,6 +324,7 @@ def copy_to_snowball(tar_name, org_files_list, job_meta):
         try:
             s3_client.head_object(Bucket=bucket_name, Key=obj_name)
             success_log_upload.info(file_meta_data)
+            snow_transfer_full.info('%s was uploaded' % (file_name))
             job_meta['uploaded_obj_num'] += 1
         except:
             error_log_upload.info(file_meta_data)
@@ -356,6 +359,7 @@ def copy_to_snowball(tar_name, org_files_list, job_meta):
     try:
         s3_client.head_object(Bucket=bucket_name, Key=tar_name)
         success_log_upload.info(tar_meta_data)
+        snow_transfer_full.info('%s was uploaded' % (tar_name))
         job_meta['uploaded_obj_num'] += 1
     except:
         error_log_upload.info(tar_meta_data)
@@ -381,7 +385,7 @@ def push_file_to_list(sum_size, org_files_list, file_name, sub_prefix, q, job_me
     try:
         sub_prefix = src_dir if src_dir else sub_prefix
         obj_name = conv_obj_name(file_name, prefix_root, sub_prefix)
-        if(os.path.islink(file_name)):
+        if (os.path.islink(file_name)):
             # continue if it is a symlink
             return
         try:
@@ -410,14 +414,14 @@ def push_file_to_list(sum_size, org_files_list, file_name, sub_prefix, q, job_me
 def upload_get_files(sub_prefix, q, job_meta):
     sum_size = 0
     org_files_list = []
-    if(os.path.isfile(sub_prefix)):
+    if (os.path.isfile(sub_prefix)):
         src_dir = input ('It appears that you are using a file instead of a directory as src, please set the file path prefix that you want to ignore when uploading to snowball:\n')
         with open(sub_prefix) as src_file:
             while True:
                 file_name = src_file.readline().split(' ')[0]
                 if not file_name:
                     break
-                if(os.path.isfile(file_name)):
+                if (os.path.isfile(file_name)):
                     org_files_list, sum_size = push_file_to_list(sum_size, org_files_list, file_name, sub_prefix, q, job_meta, src_dir)
             # put remained files into queue
             q.put(org_files_list)
