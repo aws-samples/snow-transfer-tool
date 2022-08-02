@@ -135,7 +135,7 @@ src = /Users/zic/Documents/zicTest
 log_dir = /tmp/log/s3booster/JID0001
 ```
 
-Please note that if a arguments was set in both command line and configuration file, the configuration file has predominance. 
+Please note that if a arguments was set in both command line and configuration file, the configuration file takes precedence. 
 
 #### Example Output
 
@@ -312,7 +312,7 @@ The manifest file will be like:
 /Users/zic/Documents/zicTest/level2/.DS_Store 6148
 ```
 
-The program will only consider the first string split by space as the file path, so the file_size here are useless, which means users can use other tool e.g. fpart to split their data and then upload.
+The program will only consider the first string split by space as the file path, so the file_size here are useless, which means you can use other tool e.g. fpart to split their data and then upload.
 
 ```
 ➜  AWSIE_SnowTransferTool git:(mainline) ✗ snowTransfer upload_sbe --config_file config_file

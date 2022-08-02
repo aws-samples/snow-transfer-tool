@@ -45,7 +45,7 @@ parser_b.add_argument('--endpoint', help='snowball endpoint e) http://10.10.10.1
 parser_b.add_argument('--log_dir', help='directory that stores log files e)/tmp/JID01', action='store', required='--config_file' not in sys.argv, default='/tmp/snowtransfertool/log')
 parser_b.add_argument('--profile_name', help='aws_profile_name e) sbe1', action='store', default='default')
 parser_b.add_argument('--prefix_root', help='prefix root e) dir1/', action='store', default='')
-parser_b.add_argument('--max_process', help='max number of thread e) 5', action='store', default=5, type=int)
+parser_b.add_argument('--max_process', help='max number of process e) 5', action='store', default=5, type=int)
 parser_b.add_argument('--max_tarfile_size', help='size limit of batched files e) 1Gb', action='store', default='1Gb')
 parser_b.add_argument('--compression', help='True|False compress file to "gz" format', action='store', default='False', type=bool)
 parser_b.add_argument('--extract_flag', help='True|False; Set the autoextract flag', action='store', default='True', type=bool)
@@ -212,7 +212,7 @@ def gen_filelist(src):
     num_file_processed = 0
     file_target_mp = dict()
     customer_input = input ('This operation will clean all the contents in: %s. Continue? Y/N\n' % filelist_dir)
-    if (customer_input[0].lower() != 'y'):
+    if (customer_input.strip()[0].lower() != 'y'):
         sys.exit()
     shutil.rmtree(filelist_dir, ignore_errors=False, onerror=handle_rmtree_err)
     try:
