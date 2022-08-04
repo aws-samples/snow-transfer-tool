@@ -1,16 +1,17 @@
 [UPLOAD_SBE]
 bucket_name = s3boostertest
-src_dir = /Users/zic/Documents/zictest
+src = /Users/zic/Documents/zicTest
 endpoint = https://s3.us-east-2.amazonaws.com
 profile_name = default
 prefix_root = dir1/
 max_process = 5
-max_tarfile_size = 1GB
+max_tarfile_size = 5MB
 extract_flag = True
 target_file_prefix = zictest
 log_dir = /tmp/log/s3booster/JID0001
 compression = False
 [GENLIST]
 filelist_dir = /tmp/s3booster
-partition_size = 1GB
-src_dir = /Users/zic/Documents/zictest
+partition_size = 30Mb
+src = /Users/zic/Documents/zicTest
+log_dir = /tmp/log/s3booster/JID0002
