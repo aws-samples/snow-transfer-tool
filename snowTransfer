@@ -25,6 +25,7 @@ quit_flag = 'DONE'
 current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
 partition_command = 'gen_list'
 copy_command = 'upload_sbe'
+log_list = []
 ## treating arguments
 # create the top-level parser
 parser = argparse.ArgumentParser(prog='SnowTransferTool')
@@ -107,6 +108,8 @@ def create_logger():
     error_upload = log_dir + '/error-upload-%s.log' % current_time
     success_upload = log_dir + '/success-upload-%s.log' % current_time
     snow_transfer_log = log_dir + '/snowTransfer-full-%s-log' % current_time
+    global log_list
+    log_list = [error_batch, success_batch, error_upload, success_upload, snow_transfer_log]
     ## define logger
     global error_log_batch, success_log_batch, error_log_upload, success_log_upload, snow_transfer_full
     snow_transfer_full = setup_logger('snow_transfer_full', snow_transfer_log, level=log_level, sHandler=True, format='%(asctime)s : %(funcName)s : [%(levelname)s] : %(message)s')
@@ -460,6 +463,12 @@ def batch_and_upload():
         snow_transfer_full.info('Avg file size after: %s' % (human_readable_size(job_meta['total_size'] / ((job_meta['total_file_num'] - job_meta['batched_obj_num']) + job_meta['tar_num']))))
     snow_transfer_full.info('%d files were uploaded' % (job_meta['uploaded_obj_num']))
 
+# upload log files to S3
+def upload_log():
+    for file in log_list:
+        s3_client.upload_file(file, bucket_name, file)
+    snow_transfer_full.info('Log files were uploaded!')
+
 # set up config outside of main function to support Windows "spawn" mechanism of starting new processes 
 setup_config(args.cmd)
 create_logger()
@@ -470,8 +479,11 @@ if __name__ == '__main__':
     print_setting()
     valid_setting(args.cmd)
     if args.cmd == copy_command:
+        if_upload_log = input ('Do you also want to upload the generated log files to: %s? Y/N\n' % bucket_name)
         snow_transfer_full.info('Batching and uploading files...')
         batch_and_upload()
+        if (if_upload_log.strip()[0].lower() == 'y'):
+            upload_log()
     elif args.cmd == partition_command:
         gen_filelist(src)
     snow_transfer_full.info('Program finished!')
