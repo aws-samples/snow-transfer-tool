@@ -8,7 +8,6 @@ then
   echo "Could not download python packages, please make sure that python and pip module were installed" >&2 
   exit 1
 fi
-python3 -m pip install "botocore"
 python3 -m pip install "configparser"
 python3 -m pip install "humanfriendly"
 python3 -m pip install "tqdm"

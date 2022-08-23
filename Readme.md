@@ -26,7 +26,7 @@ For windows installation we will not add the command to your PATH environment va
 
 ## Using snowTransfer
 
-snowTransfer tool provides two command: *gen_list* and *upload_sbe*
+snowTransfer tool provides two command: *gen_list* and *upload*
 
 
 ### gen_list
@@ -116,7 +116,7 @@ A template of config file is also provided. Please modify the arguments under '[
 Configuration file template:
 
 ```
-[UPLOAD_SBE]
+[UPLOAD]
 bucket_name = s3boostertest
 src = /tmp/s3booster/fl_1.txt
 endpoint = https://s3.us-east-2.amazonaws.com
@@ -157,7 +157,7 @@ y
 2022-07-13 21:57:38,053 : <module> : [INFO] : Program finished!
 ```
 
-### upload_sbe 
+### upload 
 
 This command helps you batch and upload your files to snowball automatically. The batching and uploading are happened in your hosts' memory so there is no extra disk space needed. 
 
@@ -222,7 +222,7 @@ We provide two ways to configure the file: by using command line and by using co
 Example:
 
 ```
-snowTransfer upload_sbe src = /data --bucket_name = mybucketname --endpoint = http://10:10:10:10:8080 log_dir = /tmp/log/ 
+snowTransfer upload src = /data --bucket_name = mybucketname --endpoint = http://10:10:10:10:8080 log_dir = /tmp/log/ 
 ```
 
 ##### Configure using configuration file
@@ -235,12 +235,12 @@ Example:
 snowTransfer gen_list --config_file config
 ```
 
-A template of config file is also provided. Please modify the arguments under '[UPLOAD_SBE]' if you choose to use configuration file. Also please do not modify the any contents before "=". The program will not be able to identify them if the argument names are different.
+A template of config file is also provided. Please modify the arguments under '[UPLOAD]' if you choose to use configuration file. Also please do not modify the any contents before "=". The program will not be able to identify them if the argument names are different.
 
 Configuration file template:
 
 ```
-[UPLOAD_SBE]
+[UPLOAD]
 bucket_name = s3boostertest
 src = /tmp/s3booster/fl_1.txt
 endpoint = https://s3.us-east-2.amazonaws.com
@@ -266,9 +266,9 @@ Please note that if a arguments was set in both command line and configuration f
 **Uploading from src directory:**
 
 ```
-➜  AWSIE_SnowTransferTool git:(mainline) ✗ snowTransfer upload_sbe --config_file config_file
+➜  AWSIE_SnowTransferTool git:(mainline) ✗ snowTransfer upload --config_file config_file
 2022-07-13 22:17:17,588 : print_setting : [INFO] :
-command: upload_sbe
+command: upload
 src: /Users/zic/Documents/zicTest
 endpoint: https://s3.us-east-2.amazonaws.com
 bucket_name: s3boostertest
@@ -315,9 +315,9 @@ The manifest file will be like:
 The program will only consider the first string split by space as the file path, so the file_size here are useless, which means you can use other tool e.g. fpart to split their data and then upload.
 
 ```
-➜  AWSIE_SnowTransferTool git:(mainline) ✗ snowTransfer upload_sbe --config_file config_file
+➜  AWSIE_SnowTransferTool git:(mainline) ✗ snowTransfer upload --config_file config_file
 2022-07-13 22:27:49,164 : print_setting : [INFO] :
-command: upload_sbe
+command: upload
 src: /tmp/s3booster/fl_1.txt
 endpoint: https://s3.us-east-2.amazonaws.com
 bucket_name: s3boostertest
@@ -345,5 +345,21 @@ zictestsnowball-20220713_222749-VIOAB6.tar: 100%|██████████�
 2022-07-13 22:28:35,543 : batch_and_upload : [INFO] : 3 files were uploaded
 2022-07-13 22:28:35,551 : <module> : [INFO] : Program finished!
 ```
+
+## Performance Comparison
+
+We've tested the performance between using snowTransferTool. Note that performance may vary when using different configurations. Here, we used an EC2 (c4.8xlarge) as transfer engine to transfer data from EBS (gp2) to Snowball Edge device.
+
+Data set:
+
+* No. of files: 10000000
+* Total Capacity: 1 TB
+* Avg File Size: 100 Kb
+
+|                                              | EBS -> Snowball Time |
+| -------------------------------------------- | -------------------- |
+| Using snowTransferTool (max_tar_size == 1Gb) | 45 min (~370mb/s)    |
+| Uploading individually (1 process)           | 1786 min (~1 mb/s)   |
+
 
 

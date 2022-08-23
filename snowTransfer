@@ -24,7 +24,7 @@ warnings.filterwarnings('ignore', message='Unverified HTTPS request')
 quit_flag = 'DONE'
 current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
 partition_command = 'gen_list'
-copy_command = 'upload_sbe'
+copy_command = 'upload'
 log_list = []
 ## treating arguments
 # create the top-level parser
@@ -37,7 +37,7 @@ parser_a.add_argument('--src', help='source directory e) /data/dir1/', action='s
 parser_a.add_argument('--filelist_dir', help='output destination e) /tmp/file_list/', action='store', required='--config_file' not in sys.argv)
 parser_a.add_argument('--partition_size', help='size limit for each partition e) 10Tb', action='store', required='--config_file' not in sys.argv, default="10Tb")
 parser_a.add_argument('--log_dir', help='directory that stores log files e)/tmp/JID01', action='store', required='--config_file' not in sys.argv, default='/tmp/snowtransfertool/log')
-# create the parser for the "upload_sbe" command
+# create the parser for the "upload" command
 parser_b = subparsers.add_parser(copy_command, help=copy_command + ' --help')
 parser_b.add_argument('--config_file', help='path of config file e) /tmp/config. If this argument is not present in command line, --src, --bucket_name, --endpoint, and --log_dir are required', action='store', default='')
 parser_b.add_argument('--src', help='source directory e) /data/dir1/', action='store', required='--config_file' not in sys.argv)
@@ -73,7 +73,7 @@ if (args.cmd == partition_command):
     partition_size = humanfriendly.parse_size(args.partition_size, binary=True)
 
 if (args.cmd == copy_command):
-    #config for upload_sbe
+    #config for upload
     prefix_root = args.prefix_root ## Don't forget to add last slash '/'
     bucket_name = args.bucket_name
     profile_name = args.profile_name
@@ -136,17 +136,17 @@ def setup_config(cmd):
         list_of_globals['log_dir'] = config['GENLIST']['log_dir']
     elif (cmd == copy_command):
         #If the config file was provided, overwrite the default setting with values in config file.
-        list_of_globals['src'] = config['UPLOAD_SBE']['src']
-        list_of_globals['endpoint'] = config['UPLOAD_SBE']['endpoint']
-        list_of_globals['bucket_name'] = config['UPLOAD_SBE']['bucket_name']
-        list_of_globals['prefix_root'] = config['UPLOAD_SBE']['prefix_root']
-        list_of_globals['profile_name'] = config['UPLOAD_SBE']['profile_name']
-        list_of_globals['max_process'] = int(config['UPLOAD_SBE']['max_process'])
-        list_of_globals['max_tarfile_size'] = humanfriendly.parse_size(config['UPLOAD_SBE']['max_tarfile_size'], binary=True)
-        list_of_globals['compression'] = 'gz' if eval(config['UPLOAD_SBE']['compression'].capitalize()) else ''
-        list_of_globals['target_file_prefix'] = config['UPLOAD_SBE']['target_file_prefix']
-        list_of_globals['extract_flag'] = eval(config['UPLOAD_SBE']['extract_flag'].capitalize())
-        list_of_globals['log_dir'] = config['UPLOAD_SBE']['log_dir']
+        list_of_globals['src'] = config[copy_command.upper()]['src']
+        list_of_globals['endpoint'] = config[copy_command.upper()]['endpoint']
+        list_of_globals['bucket_name'] = config[copy_command.upper()]['bucket_name']
+        list_of_globals['prefix_root'] = config[copy_command.upper()]['prefix_root']
+        list_of_globals['profile_name'] = config[copy_command.upper()]['profile_name']
+        list_of_globals['max_process'] = int(config[copy_command.upper()]['max_process'])
+        list_of_globals['max_tarfile_size'] = humanfriendly.parse_size(config[copy_command.upper()]['max_tarfile_size'], binary=True)
+        list_of_globals['compression'] = 'gz' if eval(config[copy_command.upper()]['compression'].capitalize()) else ''
+        list_of_globals['target_file_prefix'] = config[copy_command.upper()]['target_file_prefix']
+        list_of_globals['extract_flag'] = eval(config[copy_command.upper()]['extract_flag'].capitalize())
+        list_of_globals['log_dir'] = config[copy_command.upper()]['log_dir']
 
 def human_readable_size(size, decimal_places=2):
     for unit in ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB']:
