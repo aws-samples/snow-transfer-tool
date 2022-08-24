@@ -1,4 +1,4 @@
-# SnowTransfer Manual
+# snow-transfer-tool Manual
 
 ## Install SnowTransferTool
 
@@ -362,4 +362,10 @@ Data set:
 | Uploading individually (1 process)           | 1786 min (~1 mb/s)   |
 
 
+## Security
 
+See [CONTRIBUTING](CONTRIBUTING.md#security-issue-notifications) for more information.
+
+## License
+
+This project is licensed under the Apache-2.0 License.
