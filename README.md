@@ -359,7 +359,7 @@ Data set:
 |                                              | EBS -> Snowball Time |
 | -------------------------------------------- | -------------------- |
 | Using snowTransferTool (max_tar_size == 1Gb) | 45 min (~370mb/s)    |
-| Uploading individually (1 process)           | 1786 min (~1 mb/s)   |
+| Uploading individually (1 process)           | 1786 min (~10 mb/s)   |
 
 
 ## Security
