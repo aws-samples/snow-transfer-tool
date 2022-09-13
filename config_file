@@ -10,6 +10,7 @@ extract_flag = True
 target_file_prefix = zictest
 log_dir = /tmp/log/s3booster/JID0001
 compression = False
+upload_logs = False
 [GENLIST]
 filelist_dir = /tmp/s3booster
 partition_size = 30Mb

@@ -51,6 +51,7 @@ parser_b.add_argument('--max_tarfile_size', help='size limit of batched files e)
 parser_b.add_argument('--compression', help='True|False compress file to "gz" format', action='store', default='False', type=bool)
 parser_b.add_argument('--extract_flag', help='True|False; Set the autoextract flag', action='store', default='True', type=bool)
 parser_b.add_argument('--target_file_prefix', help='prefix of the target file we are creating into the snowball', action='store', default='')
+parser_b.add_argument('--upload_logs', help='True|False; Upload the generated logs to Snowball and S3', action='store', default='False', type=bool)
 
 # parse argument lists
 args = parser.parse_args()
@@ -83,6 +84,7 @@ if (args.cmd == copy_command):
     compression = 'gz' if args.compression else '' # default for no compression, "gz" to enable
     target_file_prefix = args.target_file_prefix
     extract_flag = args.extract_flag # default True
+    upload_logs = args.upload_logs
 
 #set up logger
 def setup_logger(logger_name, log_file, level=logging.INFO, sHandler=False, format='%(message)s'):
@@ -147,6 +149,7 @@ def setup_config(cmd):
         list_of_globals['target_file_prefix'] = config[copy_command.upper()]['target_file_prefix']
         list_of_globals['extract_flag'] = eval(config[copy_command.upper()]['extract_flag'].capitalize())
         list_of_globals['log_dir'] = config[copy_command.upper()]['log_dir']
+        list_of_globals['upload_logs'] = eval(config[copy_command.upper()]['upload_logs'].capitalize())
 
 def human_readable_size(size, decimal_places=2):
     for unit in ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB']:
@@ -188,7 +191,8 @@ max_process: {max_process}
 max_tarfile_size: {human_readable_size(max_tarfile_size)}
 compression: {bool(compression)}
 target_file_prefix: {target_file_prefix}
-extract_flag: {extract_flag}'''
+extract_flag: {extract_flag}
+upload_log: {upload_logs}'''
         snow_transfer_full.info(output_config)
 
 def write_to_file(dict):
@@ -206,23 +210,36 @@ def handle_rmtree_err(func, path, exc_info):
     snow_transfer_full.error('Error while trying to clean: %s\n%s' % (path, exc_info))
     raise ValueError()
 
+def isPathEmpty(path):
+    if os.path.isdir(path):
+        # Checking if the directory is empty or not
+        if not os.listdir(path):
+            return True
+        else:
+            return False
+    
+def isPathExsits(path):
+    if os.path.isdir(path):
+        return True
+    else :
+        return False
+
 def gen_filelist(src):
     sum_size = 0
-    fl_prefix = 'fl_'
+    fl_prefix = 'fl_' + str(gen_rand_char()) + "_"
     fl_type = '.txt'
     fl_index = 1
     delimiter = ' '
     num_file_processed = 0
     file_target_mp = dict()
-    customer_input = input ('This operation will clean all the contents in: %s. Continue? Y/N\n' % filelist_dir)
-    if (customer_input.strip()[0].lower() != 'y'):
-        sys.exit()
-    shutil.rmtree(filelist_dir, ignore_errors=False, onerror=handle_rmtree_err)
-    try:
-        os.makedirs(filelist_dir)
-    except: 
-        snow_transfer_full.error('Error while trying to make directory:' + filelist_dir)
-        raise ValueError()
+    if (not isPathExsits(filelist_dir)) :
+        try:
+            snow_transfer_full.info('Directory does not exsit, creating one...')
+            os.makedirs(filelist_dir)
+        except: 
+            snow_transfer_full.error('Error while trying to make directory:' + filelist_dir)
+            raise ValueError()
+
     snow_transfer_full.info('generating file list by size %s bytes' % partition_size)
     for r,d,f in os.walk(src):
         fl_name = filelist_dir + '/' + fl_prefix + str(fl_index) + fl_type
@@ -479,10 +496,9 @@ if __name__ == '__main__':
     print_setting()
     valid_setting(args.cmd)
     if args.cmd == copy_command:
-        if_upload_log = input ('Do you also want to upload the generated log files to: %s? Y/N\n' % bucket_name)
         snow_transfer_full.info('Batching and uploading files...')
         batch_and_upload()
-        if (if_upload_log.strip()[0].lower() == 'y'):
+        if (upload_logs):
             upload_log()
     elif args.cmd == partition_command:
         gen_filelist(src)
