@@ -1,6 +1,6 @@
 [UPLOAD]
 bucket_name = s3boostertest
-src = /Users/zic/Documents/zicTest
+src = /tmp/s3booster/fl_1.txt
 endpoint = https://s3.us-east-2.amazonaws.com
 profile_name = default
 prefix_root = dir1/
@@ -11,6 +11,7 @@ target_file_prefix = zictest
 log_dir = /tmp/log/s3booster/JID0001
 compression = False
 upload_logs = False
+ignored_path_prefix = /Users/zic
 [GENLIST]
 filelist_dir = /tmp/s3booster
 partition_size = 30Mb

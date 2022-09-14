@@ -52,6 +52,7 @@ parser_b.add_argument('--compression', help='True|False compress file to "gz" fo
 parser_b.add_argument('--extract_flag', help='True|False; Set the autoextract flag', action='store', default='True', type=bool)
 parser_b.add_argument('--target_file_prefix', help='prefix of the target file we are creating into the snowball', action='store', default='')
 parser_b.add_argument('--upload_logs', help='True|False; Upload the generated logs to Snowball and S3', action='store', default='False', type=bool)
+parser_b.add_argument('--ignored_path_prefix', help='The path prefix need to be ignored when source is manifest file', action='store', default='')
 
 # parse argument lists
 args = parser.parse_args()
@@ -85,6 +86,7 @@ if (args.cmd == copy_command):
     target_file_prefix = args.target_file_prefix
     extract_flag = args.extract_flag # default True
     upload_logs = args.upload_logs
+    ignored_path_prefix = args.ignored_path_prefix
 
 #set up logger
 def setup_logger(logger_name, log_file, level=logging.INFO, sHandler=False, format='%(message)s'):
@@ -150,6 +152,7 @@ def setup_config(cmd):
         list_of_globals['extract_flag'] = eval(config[copy_command.upper()]['extract_flag'].capitalize())
         list_of_globals['log_dir'] = config[copy_command.upper()]['log_dir']
         list_of_globals['upload_logs'] = eval(config[copy_command.upper()]['upload_logs'].capitalize())
+        list_of_globals['ignored_path_prefix'] = config[copy_command.upper()]['ignored_path_prefix']
 
 def human_readable_size(size, decimal_places=2):
     for unit in ['B', 'KiB', 'MiB', 'GiB', 'TiB', 'PiB']:
@@ -192,7 +195,8 @@ max_tarfile_size: {human_readable_size(max_tarfile_size)}
 compression: {bool(compression)}
 target_file_prefix: {target_file_prefix}
 extract_flag: {extract_flag}
-upload_log: {upload_logs}'''
+upload_log: {upload_logs}
+ignored_path_prefix: {ignored_path_prefix}'''
         snow_transfer_full.info(output_config)
 
 def write_to_file(dict):
@@ -435,14 +439,14 @@ def upload_get_files(sub_prefix, q, job_meta):
     sum_size = 0
     org_files_list = []
     if (os.path.isfile(sub_prefix)):
-        src_dir = input ('It appears that you are using a file instead of a directory as src, please set the file path prefix that you want to ignore when uploading to snowball:\n')
+        snow_transfer_full.info("Uploading from manifest file, please make sure the manifest file contains your files' absolute path")
         with open(sub_prefix) as src_file:
             while True:
                 file_name = src_file.readline().split(' ')[0]
                 if not file_name:
                     break
                 if (os.path.isfile(file_name)):
-                    org_files_list, sum_size = push_file_to_list(sum_size, org_files_list, file_name, sub_prefix, q, job_meta, src_dir)
+                    org_files_list, sum_size = push_file_to_list(sum_size, org_files_list, file_name, sub_prefix, q, job_meta, ignored_path_prefix)
             # put remained files into queue
             q.put(org_files_list)
         return     
