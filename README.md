@@ -4,7 +4,7 @@
 
 ### Prerequisites 
 
-Please make sure Python is installed.
+Please make sure Python3 is installed.
 
 ### Mac & Linux
 
@@ -31,11 +31,11 @@ snowTransfer tool provides two command: *gen_list* and *upload*
 
 ### gen_list
 
-This command helps you separate large data set by total size. It traverses your src directory recursively and produces multiple manifest files. Each line of a manifest file is the absolute path of a file that stores inside your src directory. The sum of file size of one manifest file will not be larger that the max-size you configured. 
+This command helps you separate large data set by total size. It traverses your src directory recursively and produces multiple file partition lists. Each line of a partition file is the absolute path of a file that stores inside your src directory. The sum of the file size of one partition file will not be larger that the max-size you configured. 
 
-For example, consider directory  `/data` contains 10 file 1.txt, 2.txt, ..., 10.txt. Each .txt file has the file size of 10 mb. If we set the max-size to 30mb. The output will be 4 manifest file that have following contents:
+For example, consider directory  `/data` contains 10 file 1.txt, 2.txt, ..., 10.txt. Each .txt file has the file size of 10 mb. If we set the max-size to 30mb. The output will be 4 partition files that have following contents:
 
-Manifest1:
+File partition 1:
 
 ```
 /data/1.txt
@@ -43,7 +43,7 @@ Manifest1:
 /data/3.txt
 ```
 
-Manifest2:
+File partition 2:
 
 ```
 /data/4.txt
@@ -51,7 +51,7 @@ Manifest2:
 /data/6.txt
 ```
 
-Manifest3:
+File partition 3:
 
 ```
 /data/7.txt
@@ -59,13 +59,13 @@ Manifest3:
 /data/9.txt
 ```
 
-Manifest4:
+File partition 4:
 
 ```
 /data/10.txt
 ```
 
-During directory traversal, all the symlink and empty folders will be ignored. Only paths of file will be appended to the manifest files. If a file size is even larger than the the partition_size, there will also be a manifest file generated. This manifest file will contain only one line (the path of that file).
+During directory traversal, all the symlink and empty folders will be ignored. Only the path of file will be appended to the file partition list. If a file size is even larger than the the partition_size, there will also be a file partition list generated. This partition file will contain only one line (the path of that file).
 
 #### Configuration
 
@@ -73,11 +73,11 @@ During directory traversal, all the symlink and empty folders will be ignored. O
 
 * **--filelist_dir: str**
 
-  The destination of generated manifest files, e.g. /tmp/file_list/
+  The destination of generated file partition lists, e.g. /tmp/file_list/
 
 * **--partition_size: int, str**
 
-  Size limit for each partition, e.g. 1Gb or 1073741824. You can set this to a number representing total byte or a human readable value like '1Gib'. Strings like 1gb, 1Gib, 2MB and 0.5 gib are all supported. Please note the we consider 'b' the same as 'ib', which is defined as base 1024. If a file size is even larger than the the partition_size, there will also be a manifest file generated. This manifest file will contain only one line (the path of that file).
+  Size limit for each partition, e.g. 1Gb or 1073741824. You can set this to a number representing total byte or a human readable value like '1Gib'. Strings like 1gb, 1Gib, 2MB and 0.5 gib are all supported. Please note the we consider 'b' the same as 'ib', which is defined as base 1024. If a file size is even larger than the the partition_size, there will also be a partition file generated. This partition file will contain only one line (the path of that file).
 
 * **--src: str**
 
@@ -117,24 +117,24 @@ Configuration file template:
 
 ```
 [UPLOAD]
-bucket_name = s3boostertest
-src = /Users/zic/Documents/zicTest
-endpoint = https://s3.us-east-2.amazonaws.com
-profile_name = default
-prefix_root = dir1/
+bucket_name = snowball_bucket_name
+src = /share1
+endpoint = http://snowball_ip:8080
+profile_name = snowball1
+prefix_root = share1/
 max_process = 5
 max_tarfile_size = 1Gb
 extract_flag = True
-target_file_prefix = zictest
-log_dir = /tmp/log/s3booster/JID0001
+target_file_prefix =
+log_dir = /home/logs/snowball1
 compression = False
-upload_logs = False
-ignored_path_prefix = 
+upload_logs = True
+ignored_path_prefix =
 [GENLIST]
-filelist_dir = /tmp/s3booster
+filelist_dir = /home/listfiles/snowball1
 partition_size = 30Mb
-src = /Users/zic/Documents/zicTest
-log_dir = /tmp/log/s3booster/JID0001
+src = /share1
+log_dir = /home/logs/snowball1
 ```
 
 Please note that if a arguments was set in both command line and configuration file, the configuration file takes precedence. 
@@ -145,21 +145,21 @@ Please note that if a arguments was set in both command line and configuration f
 ➜  snow-transfer-tool git:(main) ✗ snowTransfer gen_list --config_file config_file                                                                           
 2022-09-14 10:54:30,275 : print_setting : [INFO] : 
 Command: gen_list
-src: /Users/zic/Documents/zicTest
-filelist_dir: /tmp/s3booster
+src: /share1
+filelist_dir: /home/listfiles/snowball1
 partition_size: 30.00 MiB
-log_dir: /tmp/log/s3booster/JID0002
+log_dir: /home/logs/snowball1
 2022-09-14 10:54:30,276 : gen_filelist : [INFO] : generating file list by size 31457280 bytes
 2022-09-14 10:54:30,278 : gen_filelist : [INFO] : Part #1: size = 5652478
 2022-09-14 10:54:30,278 : gen_filelist : [INFO] : Number of scanned file: 10, symlink and empty folders were ignored
 2022-09-14 10:54:30,278 : gen_filelist : [INFO] : File lists are generated!!
-2022-09-14 10:54:30,278 : gen_filelist : [INFO] : Check /tmp/s3booster
+2022-09-14 10:54:30,278 : gen_filelist : [INFO] : Check /home/listfiles/snowball1
 2022-09-14 10:54:30,278 : <module> : [INFO] : Program finished!
 ```
 
 ### upload 
 
-This command helps you batch and upload your files to snowball automatically. The batching and uploading are happened in your hosts' memory so there is no extra disk space needed. 
+This command helps you batch and upload your files to snowball automatically. The batching and uploading are happened in your hosts' memory so there is no extra disk space needed. However, you need to make sure the number of processes times the max_tarfile_size is less that the memory size you provisioned.
 
 During the file traversal, all the symlinks and empty folders will be ignored.
 
@@ -173,7 +173,7 @@ During the file traversal, all the symlinks and empty folders will be ignored.
 
 * **src: str**
 
-  This can be a source directory, e.g. /data, or a manifest file, e.g. /manifest_file. Files inside the src directory and manifest file will be batched to a larger tar and be uploaded. 
+  This can be a source directory, e.g. /data, or a partition file, e.g. /manifest_file. Files inside the src directory and paritition file will be batched to a larger tar and be uploaded. 
 
 * **endpoint: str**
 
@@ -217,7 +217,7 @@ During the file traversal, all the symlinks and empty folders will be ignored.
 
 * **ignored_path_prefix: str** (default "")
 
-  This option is only useful when you choose to use a manifest file as the source to upload. Use this option combined with the **prefix_root** option to set the directory for object uploaded to Snowball. e.g. Inside your manifest file, there is a file absolute path: "/Users/user/Documents/testfile.txt", if the **prefix_root** was set to "/dir" and the **ignored_path_prefix** was set to "/Users/user/", the file will be in "/dir/Documents/testfile.txt" in Snowball device. 
+  This option is only useful when you choose to use a partition file as the source to upload. Use this option combined with the **prefix_root** option to set the directory for object uploaded to Snowball. e.g. Inside your partition file, there is a file absolute path: "/Users/user/Documents/testfile.txt", if the **prefix_root** was set to "/dir" and the **ignored_path_prefix** was set to "/Users/user/", the file will be in "/dir/Documents/testfile.txt" in Snowball device. 
 
 * **--config_file: str**
 
@@ -230,7 +230,7 @@ We provide two ways to configure the file: by using command line and by using co
 Example:
 
 ```
-snowTransfer upload src = /data --bucket_name = mybucketname --endpoint = http://10:10:10:10:8080 log_dir = /tmp/log/ 
+snowTransfer upload src = /data --bucket_name = mybucketname --endpoint = http://10:10:10:10:8080 --log_dir = /tmp/log/ 
 ```
 
 ##### Configure using configuration file
@@ -249,24 +249,24 @@ Configuration file template:
 
 ```
 [UPLOAD]
-bucket_name = s3boostertest
-src = /Users/zic/Documents/zicTest
-endpoint = https://s3.us-east-2.amazonaws.com
-profile_name = default
-prefix_root = dir1/
+bucket_name = snowball_bucket_name
+src = /share1
+endpoint = http://snowball_ip:8080
+profile_name = snowball1
+prefix_root = share1/
 max_process = 5
 max_tarfile_size = 1Gb
 extract_flag = True
-target_file_prefix = zictest
-log_dir = /tmp/log/s3booster/JID0001
+target_file_prefix =
+log_dir = /home/logs/snowball1
 compression = False
-upload_logs = False
-ignored_path_prefix = 
+upload_logs = True
+ignored_path_prefix =
 [GENLIST]
-filelist_dir = /tmp/s3booster
+filelist_dir = /home/listfiles/snowball1
 partition_size = 30Mb
-src = /Users/zic/Documents/zicTest
-log_dir = /tmp/log/s3booster/JID0001
+src = /share1
+log_dir = /home/logs/snowball1
 ```
 
 Please note that if a arguments was set in both command line and configuration file, the configuration file has predominance. 
@@ -279,25 +279,25 @@ Please note that if a arguments was set in both command line and configuration f
 ➜  snow-transfer-tool git:(main) ✗ snowTransfer upload --config_file config_file  
 2022-09-14 11:22:34,682 : print_setting : [INFO] : 
 command: upload
-src: /Users/zic/Documents/zicTest
-endpoint: https://s3.us-east-2.amazonaws.com
-bucket_name: s3boostertest
-log_dir: /tmp/log/s3booster/JID0001
+src: /share1
+endpoint: http://snowball_ip:8080
+bucket_name: snowball_bucket_name
+log_dir: /home/logs/snowball1
 profile_name: default
-prefix_root: dir1/
+prefix_root: share1/
 max_process: 5
 max_tarfile_size: 5.00 MiB
 compression: False
-target_file_prefix: zictest
+target_file_prefix: 
 extract_flag: True
 upload_log: False
-ignored_path_prefix: /Users/zic
+ignored_path_prefix: 
 2022-09-14 11:22:34,682 : <module> : [INFO] : Batching and uploading files...
 zictestsnowball-20220914_112234-SPBJVR.tar: 100%|██████████████████████████████████████████████████| 3/3
 zictestsnowball-20220914_112234-I9079T.tar: 100%|██████████████████████████████████████████████████| 6/6
 2022-09-14 11:22:36,289 : copy_to_snowball : [INFO] : zictestsnowball-20220914_112234-SPBJVR.tar was uploaded
 2022-09-14 11:22:36,382 : copy_to_snowball : [INFO] : zictestsnowball-20220914_112234-I9079T.tar was uploaded
-2022-09-14 11:22:45,335 : copy_to_snowball : [INFO] : /Users/zic/Documents/zicTest/Netty was uploaded
+2022-09-14 11:22:45,335 : copy_to_snowball : [INFO] : /share1/Netty was uploaded
 2022-09-14 11:22:45,342 : batch_and_upload : [INFO] : 9 out of 10 files were batched into 2 tar files
 2022-09-14 11:22:45,343 : batch_and_upload : [INFO] : Total size: 5.39 MiB
 2022-09-14 11:22:45,343 : batch_and_upload : [INFO] : Total size after batching: 50.00 KiB
@@ -307,21 +307,21 @@ zictestsnowball-20220914_112234-I9079T.tar: 100%|██████████�
 2022-09-14 11:22:45,354 : <module> : [INFO] : Program finished!
 ```
 
-**Uploading from manifest file**
+**Uploading from partition file**
 
-The manifest file will be like: 
+The content of the partition file will be like: 
 
 ```bash
-/Users/zic/Documents/zicTest/Olaf.md 4811
-/Users/zic/Documents/zicTest/testf3 39
-/Users/zic/Documents/zicTest/testf4 53
-/Users/zic/Documents/zicTest/.DS_Store 6148
-/Users/zic/Documents/zicTest/testf5 75
-/Users/zic/Documents/zicTest/testf2 8
-/Users/zic/Documents/zicTest/Netty 5635188
-/Users/zic/Documents/zicTest/a$ 0
-/Users/zic/Documents/zicTest/testf1 8
-/Users/zic/Documents/zicTest/level2/.DS_Store 6148
+/Users/Documents/test/testf1 4811
+/Users/Documents/test/testf2 39
+/Users/Documents/test/testf3 53
+/Users/Documents/test/testf4 6148
+/Users/Documents/test/testf5 75
+/Users/Documents/test/testf6 8
+/Users/Documents/test/testf7 5635188
+/Users/Documents/test/testf8 0
+/Users/Documents/test/testf9 8
+/Users/Documents/test/testf10 6148
 ```
 
 The program will only consider the first string split by space as the file path, so the file_size here are useless, which means you can use other tool e.g. fpart to split their data and then upload.
@@ -330,26 +330,26 @@ The program will only consider the first string split by space as the file path,
 ➜  snow-transfer-tool git:(main) ✗ snowTransfer upload --config_file config_file
 2022-09-14 11:24:35,786 : print_setting : [INFO] : 
 command: upload
-src: /tmp/s3booster/fl_1.txt
-endpoint: https://s3.us-east-2.amazonaws.com
-bucket_name: s3boostertest
-log_dir: /tmp/log/s3booster/JID0001
+src: /home/listfiles/snowball1/fl_1.txt
+endpoint: http://snowball_ip:8080
+bucket_name: snowball_bucket_name
+log_dir: /home/logs/snowball1
 profile_name: default
 prefix_root: dir1/
 max_process: 5
 max_tarfile_size: 5.00 MiB
 compression: False
-target_file_prefix: zictest
+target_file_prefix:
 extract_flag: True
 upload_log: False
-ignored_path_prefix: /Users/zic
+ignored_path_prefix: 
 2022-09-14 11:24:35,786 : <module> : [INFO] : Batching and uploading files...
-2022-09-14 11:24:35,812 : upload_get_files : [INFO] : Uploading from manifest file, please make sure the manifest file contains your files' absolute path
+2022-09-14 11:24:35,812 : upload_get_files : [INFO] : Uploading from partition file, please make sure the partition file contains your files' absolute path
 zictestsnowball-20220914_112435-00F8U0.tar: 100%|██████████████████████████████████████████████████| 3/3
 zictestsnowball-20220914_112435-OVN157.tar: 100%|██████████████████████████████████████████████████| 6/6
 2022-09-14 11:24:37,231 : copy_to_snowball : [INFO] : zictestsnowball-20220914_112435-00F8U0.tar was uploaded
 2022-09-14 11:24:37,537 : copy_to_snowball : [INFO] : zictestsnowball-20220914_112435-OVN157.tar was uploaded
-2022-09-14 11:24:45,726 : copy_to_snowball : [INFO] : /Users/zic/Documents/zicTest/Netty was uploaded
+2022-09-14 11:24:45,726 : copy_to_snowball : [INFO] : /Users/Documents/test/testf7 was uploaded
 2022-09-14 11:24:45,732 : batch_and_upload : [INFO] : 9 out of 10 files were batched into 2 tar files
 2022-09-14 11:24:45,733 : batch_and_upload : [INFO] : Total size: 5.39 MiB
 2022-09-14 11:24:45,733 : batch_and_upload : [INFO] : Total size after batching: 50.00 KiB

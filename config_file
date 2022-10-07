@@ -1,19 +1,19 @@
 [UPLOAD]
-bucket_name = s3boostertest
-src = /tmp/s3booster/fl_1.txt
-endpoint = https://s3.us-east-2.amazonaws.com
-profile_name = default
-prefix_root = dir1/
+bucket_name = snowball_bucket_name
+src = /share1
+endpoint = http://snowball_ip:8080
+profile_name = snowball1
+prefix_root = share1/
 max_process = 5
-max_tarfile_size = 5MB
+max_tarfile_size = 1Gb
 extract_flag = True
-target_file_prefix = zictest
-log_dir = /tmp/log/s3booster/JID0001
+target_file_prefix =
+log_dir = /home/logs/snowball1
 compression = False
-upload_logs = False
-ignored_path_prefix = /Users/zic
+upload_logs = True
+ignored_path_prefix =
 [GENLIST]
-filelist_dir = /tmp/s3booster
+filelist_dir = /home/listfiles/snowball1
 partition_size = 30Mb
-src = /Users/zic/Documents/zicTest
-log_dir = /tmp/log/s3booster/JID0002
+src = /share1
+log_dir = /home/logs/snowball1

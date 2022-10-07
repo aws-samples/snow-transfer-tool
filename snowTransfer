@@ -52,7 +52,7 @@ parser_b.add_argument('--compression', help='True|False compress file to "gz" fo
 parser_b.add_argument('--extract_flag', help='True|False; Set the autoextract flag', action='store', default='True', type=bool)
 parser_b.add_argument('--target_file_prefix', help='prefix of the target file we are creating into the snowball', action='store', default='')
 parser_b.add_argument('--upload_logs', help='True|False; Upload the generated logs to Snowball and S3', action='store', default='False', type=bool)
-parser_b.add_argument('--ignored_path_prefix', help='The path prefix need to be ignored when source is manifest file', action='store', default='')
+parser_b.add_argument('--ignored_path_prefix', help='The path prefix need to be ignored when source is partition file', action='store', default='')
 
 # parse argument lists
 args = parser.parse_args()
@@ -111,7 +111,7 @@ def create_logger():
     success_batch = log_dir + '/success-batch-%s.log' % current_time
     error_upload = log_dir + '/error-upload-%s.log' % current_time
     success_upload = log_dir + '/success-upload-%s.log' % current_time
-    snow_transfer_log = log_dir + '/snowTransfer-full-%s-log' % current_time
+    snow_transfer_log = log_dir + '/snowTransfer-full-%s.log' % current_time
     global log_list
     log_list = [error_batch, success_batch, error_upload, success_upload, snow_transfer_log]
     ## define logger
@@ -439,7 +439,7 @@ def upload_get_files(sub_prefix, q, job_meta):
     sum_size = 0
     org_files_list = []
     if (os.path.isfile(sub_prefix)):
-        snow_transfer_full.info("Uploading from manifest file, please make sure the manifest file contains your files' absolute path")
+        snow_transfer_full.info("Uploading from file partition list, please make sure the partition file contains your files' absolute path")
         with open(sub_prefix) as src_file:
             while True:
                 file_name = src_file.readline().split(' ')[0]
