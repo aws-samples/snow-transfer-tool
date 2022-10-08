@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-echo "Downing necessary python packages..."
+echo "Downloading necessary python packages..."
 SUCCESS="SnowTransfer tool successfully installed. Try execute 'snowTransfer --help' in your terminal"
 python3 -m pip install --upgrade pip
 python3 -m pip install "boto3" 2> /dev/null
