@@ -1,8 +1,8 @@
-# snow-transfer-tool Manual
+# Snow Transfer Tool
 ## Introduction
 Migrating large amount of small files to the cloud is challenging because of the increased time to transfer and cost implications. Customers often use [AWS Snowball](https://aws.amazon.com/snowball/?nc2=type_a&whats-new-cards.sort-by=item.additionalFields.postDateTime&whats-new-cards.sort-order=desc) for bulk-data migrations to the cloud when there are connectivity limitations, bandwidth constraints, and high network costs. When you transfer small files to any system there are performance implications and batching is a key solution. This tool is built on top of Yongki Kim’s [s3booster](https://github.com/aws-samples/s3booster-snowball) script to automate batching small files to improve copy performance to Snowball devices.
 
-## Install SnowTransferTool
+## Install
 
 ### Prerequisites 
 
