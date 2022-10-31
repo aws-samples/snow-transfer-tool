@@ -48,6 +48,7 @@ parser_b.add_argument('--profile_name', help='aws_profile_name e) sbe1', action=
 parser_b.add_argument('--prefix_root', help='prefix root e) dir1/', action='store', default='')
 parser_b.add_argument('--max_process', help='max number of process e) 5', action='store', default=5, type=int)
 parser_b.add_argument('--max_tarfile_size', help='size limit of batched files e) 1Gb', action='store', default='1Gb')
+parser_b.add_argument('--max_files', help='max number of file that each tar file contains e) 100000', action='store', default=100000, type=int)
 parser_b.add_argument('--compression', help='True|False compress file to "gz" format', action='store', default='False', type=bool)
 parser_b.add_argument('--extract_flag', help='True|False; Set the autoextract flag', action='store', default='True', type=bool)
 parser_b.add_argument('--target_file_prefix', help='prefix of the target file we are creating into the snowball', action='store', default='')
@@ -82,6 +83,7 @@ if (args.cmd == copy_command):
     endpoint = args.endpoint
     max_process = args.max_process
     max_tarfile_size = humanfriendly.parse_size(args.max_tarfile_size, binary=True) # 10GiB, 100GiB is max limit of snowball
+    max_files = args.max_files
     compression = 'gz' if args.compression else '' # default for no compression, "gz" to enable
     target_file_prefix = args.target_file_prefix
     extract_flag = args.extract_flag # default True
@@ -147,6 +149,7 @@ def setup_config(cmd):
         list_of_globals['profile_name'] = config[copy_command.upper()]['profile_name']
         list_of_globals['max_process'] = int(config[copy_command.upper()]['max_process'])
         list_of_globals['max_tarfile_size'] = humanfriendly.parse_size(config[copy_command.upper()]['max_tarfile_size'], binary=True)
+        list_of_globals['max_files'] = int(config[copy_command.upper()]['max_files'])
         list_of_globals['compression'] = 'gz' if eval(config[copy_command.upper()]['compression'].capitalize()) else ''
         list_of_globals['target_file_prefix'] = config[copy_command.upper()]['target_file_prefix']
         list_of_globals['extract_flag'] = eval(config[copy_command.upper()]['extract_flag'].capitalize())
@@ -192,6 +195,7 @@ profile_name: {profile_name}
 prefix_root: {prefix_root}
 max_process: {max_process}
 max_tarfile_size: {human_readable_size(max_tarfile_size)}
+max_files: {max_files}
 compression: {bool(compression)}
 target_file_prefix: {target_file_prefix}
 extract_flag: {extract_flag}
@@ -418,7 +422,7 @@ def push_file_to_list(sum_size, org_files_list, file_name, sub_prefix, q, job_me
             snow_transfer_full.error(str(e))
         job_meta['total_size'] += f_size
         file_info = (file_name, obj_name, f_size)
-        if (sum_size + f_size < max_tarfile_size):
+        if (sum_size + f_size < max_tarfile_size and len(org_files_list) < max_files):
             org_files_list.append(file_info)
             sum_size += f_size
         else:
