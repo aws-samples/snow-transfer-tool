@@ -123,6 +123,8 @@ bucket_name = snowball_bucket_name
 src = /share1
 endpoint = http://snowball_ip:8080
 profile_name = snowball1
+aws_access_key_id = 
+aws_secret_access_key = 
 prefix_root = share1/
 max_process = 5
 max_tarfile_size = 1Gb
@@ -188,7 +190,15 @@ During the file traversal, all the symlinks and empty folders will be ignored.
 
 * **profile_name: str** (default 'default')
 
-  AWS profile name, e.g. sbe1
+  AWS profile name, e.g. sbe1. The script will use **aws_access_key_id** and **aws_secret_access_key** to create S3 client if they are not empty.
+
+* **aws_access_key_id: str** (default '')
+
+  AWS aws_access_key_id.
+
+* **aws_secret_access_key: str** (default '')
+
+  AWS aws_secret_access_key. 
 
 * **prefix_root: str** (default "")
 
@@ -204,7 +214,7 @@ During the file traversal, all the symlinks and empty folders will be ignored.
 
 * **max_files, int** (default 100000)
 
-  Max number of file that each tar file will contains. The priority of this option is higher than the **max_tarfile_size**. Configure **max_tarfile_size** and the **max_files** options together to control how files are batched.
+  Max number of file that each tar file will contains. Configure **max_tarfile_size** and the **max_files** options together to control how files are batched.
 
 * **extract_flag: bool** (default True)
 
@@ -226,7 +236,7 @@ During the file traversal, all the symlinks and empty folders will be ignored.
 
   This option is only useful when you choose to use a partition file as the source to upload. Use this option combined with the **prefix_root** option to set the directory for object uploaded to Snowball. e.g. Inside your partition file, there is a file absolute path: "/Users/user/Documents/testfile.txt", if the **prefix_root** was set to "/dir" and the **ignored_path_prefix** was set to "/Users/user/", the file will be in "/dir/Documents/testfile.txt" in Snowball device. 
 
-* **--config_file: str**
+* **config_file: str**
 
   Path of the config file, e.g. ./config. If this argument is not present in command line, --src, --bucket_name, --endpoint, and --log_dir are required. 
 
@@ -260,6 +270,8 @@ bucket_name = snowball_bucket_name
 src = /share1
 endpoint = http://snowball_ip:8080
 profile_name = snowball1
+aws_access_key_id = 
+aws_secret_access_key = 
 prefix_root = share1/
 max_process = 5
 max_tarfile_size = 1Gb

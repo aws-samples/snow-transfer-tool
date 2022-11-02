@@ -6,6 +6,7 @@ profile_name = snowball1
 prefix_root = share1/
 max_process = 5
 max_tarfile_size = 1Gb
+max_files = 100000
 extract_flag = True
 target_file_prefix =
 log_dir = /home/logs/snowball1

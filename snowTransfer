@@ -45,6 +45,8 @@ parser_b.add_argument('--bucket_name', help='your bucket name e) your-bucket', a
 parser_b.add_argument('--endpoint', help='snowball endpoint e) http://10.10.10.10:8080', action='store', required='--config_file' not in sys.argv)
 parser_b.add_argument('--log_dir', help='directory that stores log files e)/tmp/JID01', action='store', required='--config_file' not in sys.argv, default='/tmp/snowtransfertool/log')
 parser_b.add_argument('--profile_name', help='aws_profile_name e) sbe1', action='store', default='default')
+parser_b.add_argument('--aws_access_key_id', help='aws access key id', action='store', default='')
+parser_b.add_argument('--aws_secret_access_key', help='aws secret access key', action='store', default='')
 parser_b.add_argument('--prefix_root', help='prefix root e) dir1/', action='store', default='')
 parser_b.add_argument('--max_process', help='max number of process e) 5', action='store', default=5, type=int)
 parser_b.add_argument('--max_tarfile_size', help='size limit of batched files e) 1Gb', action='store', default='1Gb')
@@ -80,6 +82,8 @@ if (args.cmd == copy_command):
     prefix_root = args.prefix_root ## Don't forget to add last slash '/'
     bucket_name = args.bucket_name
     profile_name = args.profile_name
+    aws_access_key_id = args.aws_access_key_id
+    aws_secret_access_key = args.aws_secret_access_key
     endpoint = args.endpoint
     max_process = args.max_process
     max_tarfile_size = humanfriendly.parse_size(args.max_tarfile_size, binary=True) # 10GiB, 100GiB is max limit of snowball
@@ -147,6 +151,8 @@ def setup_config(cmd):
         list_of_globals['bucket_name'] = config[copy_command.upper()]['bucket_name']
         list_of_globals['prefix_root'] = config[copy_command.upper()]['prefix_root']
         list_of_globals['profile_name'] = config[copy_command.upper()]['profile_name']
+        list_of_globals['aws_access_key_id'] = config[copy_command.upper()]['aws_access_key_id']
+        list_of_globals['aws_secret_access_key'] = config[copy_command.upper()]['aws_secret_access_key']
         list_of_globals['max_process'] = int(config[copy_command.upper()]['max_process'])
         list_of_globals['max_tarfile_size'] = humanfriendly.parse_size(config[copy_command.upper()]['max_tarfile_size'], binary=True)
         list_of_globals['max_files'] = int(config[copy_command.upper()]['max_files'])
@@ -295,6 +301,8 @@ def set_up_transfer_config():
     transfer_config = TransferConfig(max_concurrency=mpu_max_concurrency)
     # S3 session
     session = boto3.Session(profile_name=profile_name)
+    if (aws_secret_access_key and aws_secret_access_key):
+        session = boto3.Session(region_name='snow', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
     s3_client = session.client('s3', endpoint_url=endpoint, verify=False)
 
 # execute multi-threading
