@@ -26,7 +26,7 @@ current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
 partition_command = 'gen_list'
 copy_command = 'upload'
 log_list = []
-## treating arguments
+# treating arguments
 # create the top-level parser
 parser = argparse.ArgumentParser(prog='SnowTransferTool')
 subparsers = parser.add_subparsers(dest='cmd')
@@ -35,7 +35,8 @@ parser_a = subparsers.add_parser(partition_command, help=partition_command + ' -
 parser_a.add_argument('--config_file', help='path of config file e) /tmp/config. If this argument is not present in command line, --src, --filelist_dir, --partition_size, and --log_dir are required', action='store', default='')
 parser_a.add_argument('--src', help='source directory e) /data/dir1/', action='store', required='--config_file' not in sys.argv)
 parser_a.add_argument('--filelist_dir', help='output destination e) /tmp/file_list/', action='store', required='--config_file' not in sys.argv)
-parser_a.add_argument('--partition_size', help='size limit for each partition e) 10Tb', action='store', required='--config_file' not in sys.argv, default="10Tb")
+parser_a.add_argument('--partition_size', help='size limit for each partition e) 1Tb', action='store', required='--config_file' not in sys.argv, default="10Gb")
+parser_a.add_argument('--device_capacity', help='the storage capacity of the device to which you want to upload e) 80Tb', action='store', required='--config_file' not in sys.argv, default="80Tb")
 parser_a.add_argument('--log_dir', help='directory that stores log files e)/tmp/JID01', action='store', required='--config_file' not in sys.argv, default='/tmp/snowtransfertool/log')
 # create the parser for the "upload" command
 parser_b = subparsers.add_parser(copy_command, help=copy_command + ' --help')
@@ -73,12 +74,13 @@ positional arguments:
 src = args.src
 log_dir = args.log_dir
 if (args.cmd == partition_command):
-    #config for gen_list
+    # config for gen_list
     filelist_dir = args.filelist_dir
     partition_size = humanfriendly.parse_size(args.partition_size, binary=True)
+    device_capacity = humanfriendly.parse_size(args.device_capacity, binary=True)
 
 if (args.cmd == copy_command):
-    #config for upload
+    # config for upload
     prefix_root = args.prefix_root ## Don't forget to add last slash '/'
     bucket_name = args.bucket_name
     profile_name = args.profile_name
@@ -94,7 +96,7 @@ if (args.cmd == copy_command):
     upload_logs = args.upload_logs
     ignored_path_prefix = args.ignored_path_prefix
 
-#set up logger
+# set up logger
 def setup_logger(logger_name, log_file, level=logging.INFO, sHandler=False, format='%(message)s'):
     l = logging.getLogger(logger_name)
     l.setLevel(level)
@@ -143,9 +145,10 @@ def setup_config(cmd):
         list_of_globals['src'] = config['GENLIST']['src']
         list_of_globals['filelist_dir'] = config['GENLIST']['filelist_dir']
         list_of_globals['partition_size'] = humanfriendly.parse_size(config['GENLIST']['partition_size'], binary=True)
+        list_of_globals['device_capacity'] = humanfriendly.parse_size(config['GENLIST']['device_capacity'], binary=True)
         list_of_globals['log_dir'] = config['GENLIST']['log_dir']
     elif (cmd == copy_command):
-        #If the config file was provided, overwrite the default setting with values in config file.
+        # if the config file was provided, overwrite the default setting with values in config file.
         list_of_globals['src'] = config[copy_command.upper()]['src']
         list_of_globals['endpoint'] = config[copy_command.upper()]['endpoint']
         list_of_globals['bucket_name'] = config[copy_command.upper()]['bucket_name']
@@ -172,9 +175,9 @@ def human_readable_size(size, decimal_places=2):
 
 def valid_setting(cmd):
     if (cmd == partition_command):
-         # Check if the filelist_dir and partition_size were correctly set up
-        if (not src or not filelist_dir or not partition_size or not log_dir):
-            raise ValueError('src, filelist_dir, partition_size and log_dir must be specified!')
+         # check if the filelist_dir and partition_size were correctly set up
+        if (not src or not filelist_dir or not partition_size or not log_dir or not device_capacity):
+            raise ValueError('src, filelist_dir, partition_size, device_capacity, and log_dir must be specified!')
         if not os.path.isdir(src):
             raise IOError('Source directory not found: ' + src)
     elif (cmd == copy_command):    
@@ -188,6 +191,7 @@ Command: {args.cmd}
 src: {src}
 filelist_dir: {filelist_dir}
 partition_size: {human_readable_size(partition_size)}
+device_capacity: {human_readable_size(device_capacity)}
 log_dir: {log_dir}'''
         snow_transfer_full.info(output_config)
     elif (args.cmd == copy_command):
@@ -216,7 +220,7 @@ def write_to_file(dict):
                 f.write('%s\n' %line)
     return 0
 
-#Error handler for ``shutil.rmtree``
+# error handler for ``shutil.rmtree``
 def handle_rmtree_err(func, path, exc_info):
     if not os.path.isdir(path):
         snow_transfer_full.info('Directory does not exsit, creating one...')
@@ -246,6 +250,9 @@ def gen_filelist(src):
     delimiter = ' '
     num_file_processed = 0
     file_target_mp = dict()
+    device_num = 1
+    device_folder_name = 'device_' + human_readable_size(device_capacity).replace(' ', '') + '_'
+    device_sum_size = 0
     if (not isPathExsits(filelist_dir)) :
         try:
             snow_transfer_full.info('Directory does not exsit, creating one...')
@@ -253,10 +260,9 @@ def gen_filelist(src):
         except: 
             snow_transfer_full.error('Error while trying to make directory:' + filelist_dir)
             raise ValueError()
-
-    snow_transfer_full.info('generating file list by size %s bytes' % partition_size)
+    snow_transfer_full.info('Generating file list by size %s bytes' % partition_size)
     for r,d,f in os.walk(src):
-        fl_name = filelist_dir + '/' + fl_prefix + str(fl_index) + fl_type
+        fl_name = filelist_dir + '/' + device_folder_name + str(device_num) + '/' + fl_prefix + str(fl_index) + fl_type
         for file in f:
             file_name = os.path.join(r,file)
             if (os.path.islink(file_name)):
@@ -273,9 +279,24 @@ def gen_filelist(src):
             if partition_size < sum_size:
                 if (sum_size - f_size != 0):
                     fl_index += 1
-                    fl_name = filelist_dir + '/' + fl_prefix + str(fl_index) + fl_type
                 snow_transfer_full.info('Part #%d: size = %d' % (fl_index - 1, sum_size - f_size))
+                device_sum_size = device_sum_size + sum_size - f_size
+                # If this file will fall into the next device, we need to create a new folder with a new device id.
+                # Use max(partition_size, f_size) to handle some extreme cases that the size of one file is larger that the partition size. 
+                if device_sum_size + max(partition_size, f_size) > device_capacity:
+                    device_num += 1
+                    device_sum_size = 0
+
+                fl_name = filelist_dir + '/' + device_folder_name + str(device_num) + '/' + fl_prefix + str(fl_index) + fl_type
                 sum_size = f_size
+
+            if (not isPathExsits(filelist_dir + '/' + device_folder_name + str(device_num))) :
+                try:
+                    snow_transfer_full.info('Creating a new folder for device ' + str(device_num))
+                    os.makedirs(filelist_dir + '/' + device_folder_name + str(device_num))
+                except: 
+                    snow_transfer_full.error('Error while trying to make new folder for device ' + str(device_num))
+                    raise ValueError()
             if fl_name not in file_target_mp:
                 file_target_mp[fl_name] = []
             file_target_mp[fl_name].append(f_info_str)
@@ -285,8 +306,8 @@ def gen_filelist(src):
                 snow_transfer_full.info('Number of scanned file: %d', num_file_processed)
                 write_to_file(file_target_mp)
                 file_target_mp = dict()
+    # write the remaining info to file
     write_to_file(file_target_mp)
-    fl_name = filelist_dir + '/' + fl_prefix + str(fl_index) + fl_type
     snow_transfer_full.info('Part #%d: size = %d' % (fl_index, sum_size))
     snow_transfer_full.info('Number of scanned file: %d, symlink and empty folders were ignored', num_file_processed)
     snow_transfer_full.info('File lists are generated!!')
@@ -339,7 +360,6 @@ def gen_rand_char():
     char_set = string.ascii_uppercase + string.digits
     return (''.join(random.sample(char_set*6, 6)))
 
-## code from snowball_uploader
 def copy_to_snowball(tar_name, org_files_list, job_meta):
     delimeter = ', '
     tar_file_size = 0
@@ -347,7 +367,7 @@ def copy_to_snowball(tar_name, org_files_list, job_meta):
     collected_files_no = 0
     if (len(org_files_list) == 0):
         return 0
-    #Do not perform batch when there is only one file in file_list. Use mpu instead.
+    # do not perform batch when there is only one file in file_list. Use mpu instead.
     if (len(org_files_list) == 1):
         file_name, obj_name, file_size = org_files_list[0]
         file_meta_data = delimeter.join([file_name, obj_name, str(file_size)])
@@ -434,7 +454,7 @@ def push_file_to_list(sum_size, org_files_list, file_name, sub_prefix, q, job_me
             org_files_list.append(file_info)
             sum_size += f_size
         else:
-            #Since upload is much slower than list generation, do not keep pushing list to the queue to avoid OOM
+            # since upload is much slower than list generation, do not keep pushing list to the queue to avoid OOM
             while (q.qsize() > max_process):
                 pass
             # put files into queue in max_tarfile_size

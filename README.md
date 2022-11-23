@@ -33,7 +33,7 @@ snowTransfer tool provides two command: *gen_list* and *upload*
 
 ### gen_list
 
-This command helps you separate large data set by total size. It traverses your src directory recursively and produces multiple file partition lists. Each line of a partition file is the absolute path of a file that stores inside your src directory. The sum of the file size of one partition file will not be larger that the max-size you configured. 
+This command helps you separate large data set by total size. It traverses your src directory recursively and produces multiple file partition lists. Each line of a partition file is the absolute path of a file that stores inside your src directory. The sum of the file size of one partition file will not be larger than the max-size you configured. 
 
 For example, consider directory  `/data` contains 10 file 1.txt, 2.txt, ..., 10.txt. Each .txt file has the file size of 10 mb. If we set the max-size to 30mb. The output will be 4 partition files that have following contents:
 
@@ -69,6 +69,8 @@ File partition 4:
 
 During directory traversal, all the symlink and empty folders will be ignored. Only the path of file will be appended to the file partition list. If a file size is even larger than the the partition_size, there will also be a file partition list generated. This partition file will contain only one line (the path of that file).
 
+This command also provides a way to help you seperate your large data sets by device size, which enables you to transfer files into multiple snowballs in parallel without worrying about exceeding device capacity. For example, if you have 240TB of data in your datacenter to be upload to Snowball Edge with stroage optimized (80TB of capacity), you can set the device_capacity to 80TB. After running the gen_list command, there will be 3 or 4 subfolder under the filelist_dir. The sum of size of all partitions inside one subfolder will be less or equal to 80TB.
+
 #### Configuration
 
 ##### Arguments
@@ -77,9 +79,12 @@ During directory traversal, all the symlink and empty folders will be ignored. O
 
   The destination of generated file partition lists, e.g. /tmp/file_list/
 
-* **--partition_size: int, str**
+* **--partition_size: int, str** (default '10GB')
 
   Size limit for each partition, e.g. 1Gb or 1073741824. You can set this to a number representing total byte or a human readable value like '1Gib'. Strings like 1gb, 1Gib, 2MB and 0.5 gib are all supported. Please note the we consider 'b' the same as 'ib', which is defined as base 1024. If a file size is even larger than the the partition_size, there will also be a partition file generated. This partition file will contain only one line (the path of that file).
+
+* **--device_capacity: int, str** (default '80TB')
+  Size limit for one snowball device. You can set this to a number representing total byte or a human readable value like '80TB'. Strings like 10tb, 10Tib, 20TB and 0.5 tib are all supported. Please note the we consider 'b' the same as 'ib', which is defined as base 1024. Set this option correctly if you have a data set with size larger than the capacity of one snowball.
 
 * **--src: str**
 
@@ -100,7 +105,7 @@ We provide two ways to configure the file: by using command line and by using co
 Example:
 
 ```
-snowTransfer gen_list --filelist_dir = /tmp/output partition_size = 30Mb src = /data log_dir = /tmp/log/
+snowTransfer gen_list --filelist_dir = /tmp/output --partition_size = 30Mb src = /data --log_dir = /tmp/log/ --device_capacity = 10TB
 ```
 
 ##### Configure using configuration file
@@ -138,6 +143,7 @@ ignored_path_prefix =
 [GENLIST]
 filelist_dir = /home/listfiles/snowball1
 partition_size = 30Mb
+device_capacity = 80TB
 src = /share1
 log_dir = /home/logs/snowball1
 ```
@@ -153,6 +159,7 @@ Command: gen_list
 src: /share1
 filelist_dir: /home/listfiles/snowball1
 partition_size: 30.00 MiB
+device_capacity: 80TB
 log_dir: /home/logs/snowball1
 2022-09-14 10:54:30,276 : gen_filelist : [INFO] : generating file list by size 31457280 bytes
 2022-09-14 10:54:30,278 : gen_filelist : [INFO] : Part #1: size = 5652478
@@ -285,6 +292,7 @@ ignored_path_prefix =
 [GENLIST]
 filelist_dir = /home/listfiles/snowball1
 partition_size = 30Mb
+device_capacity = 80TB
 src = /share1
 log_dir = /home/logs/snowball1
 ```

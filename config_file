@@ -3,6 +3,8 @@ bucket_name = snowball_bucket_name
 src = /share1
 endpoint = http://snowball_ip:8080
 profile_name = snowball1
+aws_access_key_id = 
+aws_secret_access_key = 
 prefix_root = share1/
 max_process = 5
 max_tarfile_size = 1Gb
@@ -15,6 +17,7 @@ upload_logs = True
 ignored_path_prefix =
 [GENLIST]
 filelist_dir = /home/listfiles/snowball1
-partition_size = 30Mb
+partition_size = 10GB
+device_capacity = 80TB
 src = /share1
 log_dir = /home/logs/snowball1
