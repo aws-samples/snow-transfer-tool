@@ -84,6 +84,7 @@ This command also provides a way to help you seperate your large data sets by de
   Size limit for each partition, e.g. 1Gb or 1073741824. You can set this to a number representing total byte or a human readable value like '1Gib'. Strings like 1gb, 1Gib, 2MB and 0.5 gib are all supported. Please note the we consider 'b' the same as 'ib', which is defined as base 1024. If a file size is even larger than the the partition_size, there will also be a partition file generated. This partition file will contain only one line (the path of that file).
 
 * **--device_capacity: int, str** (default '80TB')
+
   Size limit for one snowball device. You can set this to a number representing total byte or a human readable value like '80TB'. Strings like 10tb, 10Tib, 20TB and 0.5 tib are all supported. Please note the we consider 'b' the same as 'ib', which is defined as base 1024. Set this option correctly if you have a data set with size larger than the capacity of one snowball.
 
 * **--src: str**
