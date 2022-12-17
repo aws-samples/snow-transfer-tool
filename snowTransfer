@@ -390,7 +390,6 @@ def copy_to_snowball(tar_name, org_files_list, job_meta):
         for file_name, obj_name, file_size in tqdm(org_files_list, desc=tar_name, bar_format='{l_bar}{bar:50}| {n_fmt}/{total_fmt}'):
             file_meta_data = delimeter.join([tar_name, file_name, obj_name, str(file_size)])
             try:
-                snow_transfer_full.info(obj_name)
                 tar.add(file_name, arcname=obj_name)
                 tar_file_size += file_size
                 collected_files_no += 1
