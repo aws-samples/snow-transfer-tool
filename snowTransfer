@@ -271,14 +271,7 @@ def gen_filelist(src):
     for entry in scan_recursive(src):
         fl_name = filelist_dir + '/' + device_folder_name + str(device_num) + '/' + fl_prefix + str(fl_index) + fl_type
         file_name = entry.path
-        if (entry.is_symlink()):
-            # continue if it is a symlink
-            continue
-        try:
-            f_meta = entry.stat()
-        except Exception as e:
-            snow_transfer_full.error(str(e))
-        f_size = f_meta.st_size
+        f_size = entry.stat().st_size
         sum_size = sum_size + f_size
         f_info = [file_name ,str(f_size)]
         f_info_str = delimiter.join(f_info)
@@ -356,7 +349,8 @@ def conv_obj_name(file_name, prefix_root, sub_prefix):
     if sub_prefix[-1] != '/':
         sub_prefix = sub_prefix + '/'
     if os.name == 'nt':
-        obj_name = prefix_root + file_name.replace(sub_prefix,'',1).replace('\\', '/')
+        sub_prefix = sub_prefix.replace('\\', '/')
+        obj_name = prefix_root + file_name.replace('\\', '/').replace(sub_prefix,'',1)
     else:
         obj_name = prefix_root + file_name.replace(sub_prefix,'',1)
     return obj_name
@@ -396,6 +390,7 @@ def copy_to_snowball(tar_name, org_files_list, job_meta):
         for file_name, obj_name, file_size in tqdm(org_files_list, desc=tar_name, bar_format='{l_bar}{bar:50}| {n_fmt}/{total_fmt}'):
             file_meta_data = delimeter.join([tar_name, file_name, obj_name, str(file_size)])
             try:
+                snow_transfer_full.info(obj_name)
                 tar.add(file_name, arcname=obj_name)
                 tar_file_size += file_size
                 collected_files_no += 1
