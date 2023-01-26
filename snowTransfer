@@ -437,7 +437,7 @@ def upload_file(q, job_meta):
         except Exception as e:
             snow_transfer_full.error(traceback.format_exc())
 
-def push_file_to_list(sum_size, org_files_list, file_name, sub_prefix, q, job_meta, src_dir=""):
+def push_file_to_list(sum_size, org_files_list, file_name, sub_prefix, q, job_meta, src_dir="", is_partition_file=False):
     try:
         sub_prefix = src_dir if src_dir else sub_prefix
         obj_name = conv_obj_name(file_name, prefix_root, sub_prefix)
@@ -450,7 +450,7 @@ def push_file_to_list(sum_size, org_files_list, file_name, sub_prefix, q, job_me
             snow_transfer_full.error(str(e))
         job_meta['total_size'] += f_size
         file_info = (file_name, obj_name, f_size)
-        if (sum_size + f_size < max_tarfile_size and len(org_files_list) < max_files):
+        if (is_partition_file or (sum_size + f_size < max_tarfile_size and len(org_files_list) < max_files)):
             org_files_list.append(file_info)
             sum_size += f_size
         else:
@@ -478,7 +478,7 @@ def upload_get_files(sub_prefix, q, job_meta):
                 if not file_name:
                     break
                 if (os.path.isfile(file_name)):
-                    org_files_list, sum_size = push_file_to_list(sum_size, org_files_list, file_name, sub_prefix, q, job_meta, ignored_path_prefix)
+                    org_files_list, sum_size = push_file_to_list(sum_size, org_files_list, file_name, sub_prefix, q, job_meta, ignored_path_prefix, True)
             # put remained files into queue
             q.put(org_files_list)
         return     
