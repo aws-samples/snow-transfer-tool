@@ -70,6 +70,11 @@ positional arguments:
     print(help_mesg)
     sys.exit()
 
+# generate random 6 character
+def gen_rand_char():
+    char_set = string.ascii_uppercase + string.digits
+    return (''.join(random.sample(char_set*6, 6)))
+
 # src and log_dir are required in both commands.
 src = args.src
 log_dir = args.log_dir
@@ -355,11 +360,6 @@ def conv_obj_name(file_name, prefix_root, sub_prefix):
         obj_name = prefix_root + file_name.replace(sub_prefix,'',1)
     return obj_name
 
-# generate random 6 character
-def gen_rand_char():
-    char_set = string.ascii_uppercase + string.digits
-    return (''.join(random.sample(char_set*6, 6)))
-
 def copy_to_snowball(tar_name, org_files_list, job_meta):
     delimeter = ', '
     tar_file_size = 0
@@ -367,24 +367,30 @@ def copy_to_snowball(tar_name, org_files_list, job_meta):
     collected_files_no = 0
     if (len(org_files_list) == 0):
         return 0
-    # do not perform batch when there is only one file in file_list. Use mpu instead.
-    if (len(org_files_list) == 1):
-        file_name, obj_name, file_size = org_files_list[0]
-        file_meta_data = delimeter.join([file_name, obj_name, str(file_size)])
-        error_log_batch.info(file_meta_data)
-        try:
-            s3_client.upload_file(file_name, bucket_name, obj_name, Config=transfer_config)
-        except Exception as e:
-            snow_transfer_full.error(str(e))
-            error_log_upload.info(file_meta_data)
-        try:
-            s3_client.head_object(Bucket=bucket_name, Key=obj_name)
-            success_log_upload.info(file_meta_data)
-            snow_transfer_full.info('%s was uploaded' % (file_name))
-            job_meta['uploaded_obj_num'] += 1
-        except:
-            error_log_upload.info(file_meta_data)
-        return 1
+    # # do not perform batch when there is only one file in file_list. Use mpu instead.
+    # if (len(org_files_list) == 1):
+    #     file_name, obj_name, file_size = org_files_list[0]
+    #     file_meta_data = delimeter.join([file_name, obj_name, str(file_size)])
+    #     error_log_batch.info(file_meta_data)
+    #     try:
+    #         s3_client.upload_file(file_name, bucket_name, obj_name, Config=transfer_config)
+    #     except Exception as e:
+    #         snow_transfer_full.error(str(e))
+    #         error_log_upload.info(file_meta_data)
+    #     try:
+    #         s3_client.head_object(Bucket=bucket_name, Key=obj_name)
+    #         success_log_upload.info(file_meta_data)
+    #         snow_transfer_full.info('%s was uploaded' % (file_name))
+    #         job_meta['uploaded_obj_num'] += 1
+    #     except:
+    #         error_log_upload.info(file_meta_data)
+    #     return 1
+
+    job_meta['tar_num'] += 1
+    if compression == '':
+        tar_name = tar_name + '-' + str(job_meta['tar_num']) + '.tar'
+    elif compression == 'gz':
+        tar_name = tar_name + '-' + str(job_meta['tar_num']) + '.tgz'
 
     with tarfile.open(fileobj=recv_buf, mode='w:' + compression) as tar:
         for file_name, obj_name, file_size in tqdm(org_files_list, desc=tar_name, bar_format='{l_bar}{bar:50}| {n_fmt}/{total_fmt}'):
@@ -399,7 +405,6 @@ def copy_to_snowball(tar_name, org_files_list, job_meta):
                 error_log_batch.info(file_meta_data)
 
     recv_buf.seek(0)
-    job_meta['tar_num'] += 1
     job_meta['batched_obj_num'] += collected_files_no            
     job_meta['total_tar_size'] += + recv_buf.getbuffer().nbytes
     tar_meta_data = delimeter.join([tar_name, bucket_name, str(tar_file_size), str(collected_files_no)])
@@ -424,12 +429,9 @@ def copy_to_snowball(tar_name, org_files_list, job_meta):
 def upload_file(q, job_meta):
     global target_file_prefix
     while True:
-        org_files_list = q.get()
         randchar = str(gen_rand_char())
-        if compression == '':
-            tar_name = ('%ssnowball-%s-%s.tar' % (target_file_prefix, current_time, randchar))
-        elif compression == 'gz':
-            tar_name = ('%ssnowball-%s-%s.tgz' % (target_file_prefix, current_time, randchar))
+        org_files_list = q.get()
+        tar_name = ('%ssnowball-%s-%s' % (target_file_prefix, current_time, randchar))
         if org_files_list == quit_flag:
             break
         try:
