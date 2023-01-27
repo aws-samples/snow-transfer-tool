@@ -68,23 +68,31 @@ positional arguments:
     {partition_command}            {partition_command} --help
     {copy_command}          {copy_command} --help'''
     print(help_mesg)
-    sys.exit()
+    #sys.exit()
 
 # generate random 6 character
 def gen_rand_char():
     char_set = string.ascii_uppercase + string.digits
     return (''.join(random.sample(char_set*6, 6)))
 
+randchar = str(gen_rand_char())
+
 # src and log_dir are required in both commands.
-src = args.src
-log_dir = args.log_dir
+#src = args.src
+#log_dir = args.log_dir
 if (args.cmd == partition_command):
+    # src and log_dir are required in both commands.
+    src = args.src
+    log_dir = args.log_dir
     # config for gen_list
     filelist_dir = args.filelist_dir
     partition_size = humanfriendly.parse_size(args.partition_size, binary=True)
     device_capacity = humanfriendly.parse_size(args.device_capacity, binary=True)
 
 if (args.cmd == copy_command):
+    # src and log_dir are required in both commands.
+    src = args.src
+    log_dir = args.log_dir  
     # config for upload
     prefix_root = args.prefix_root ## Don't forget to add last slash '/'
     bucket_name = args.bucket_name
@@ -256,7 +264,7 @@ def scan_recursive(src):
 
 def gen_filelist(src):
     sum_size = 0
-    fl_prefix = 'fl_' + str(gen_rand_char()) + "_"
+    fl_prefix = 'fl_' + randchar + "_"
     fl_type = '.txt'
     fl_index = 1
     delimiter = ' '
@@ -367,6 +375,7 @@ def copy_to_snowball(tar_name, org_files_list, job_meta):
     collected_files_no = 0
     if (len(org_files_list) == 0):
         return 0
+    ## Commend out this block to avoid misunderstandings for customer when they do testing.
     # # do not perform batch when there is only one file in file_list. Use mpu instead.
     # if (len(org_files_list) == 1):
     #     file_name, obj_name, file_size = org_files_list[0]
@@ -385,6 +394,7 @@ def copy_to_snowball(tar_name, org_files_list, job_meta):
     #     except:
     #         error_log_upload.info(file_meta_data)
     #     return 1
+    ##
 
     job_meta['tar_num'] += 1
     if compression == '':
@@ -429,7 +439,6 @@ def copy_to_snowball(tar_name, org_files_list, job_meta):
 def upload_file(q, job_meta):
     global target_file_prefix
     while True:
-        randchar = str(gen_rand_char())
         org_files_list = q.get()
         tar_name = ('%ssnowball-%s-%s' % (target_file_prefix, current_time, randchar))
         if org_files_list == quit_flag:
@@ -523,13 +532,17 @@ def upload_log():
         s3_client.upload_file(file, bucket_name, file)
     snow_transfer_full.info('Log files were uploaded!')
 
-# set up config outside of main function to support Windows "spawn" mechanism of starting new processes 
-setup_config(args.cmd)
-create_logger()
+# set up config outside of main function to support Windows "spawn" mechanism of starting new processes
+
+if (args.cmd):
+    setup_config(args.cmd)
+    create_logger()
 if (args.cmd == copy_command):
     set_up_transfer_config()
 # start main function
 if __name__ == '__main__':
+    if (not args.cmd):
+        sys.exit()
     print_setting()
     valid_setting(args.cmd)
     if args.cmd == copy_command:
