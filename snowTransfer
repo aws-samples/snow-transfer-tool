@@ -10,7 +10,6 @@ import logging
 import multiprocessing
 import os
 import random
-import shutil
 import string
 import sys
 import tarfile
@@ -74,8 +73,7 @@ positional arguments:
 def gen_rand_char():
     char_set = string.ascii_uppercase + string.digits
     return (''.join(random.sample(char_set*6, 6)))
-
-randchar = str(gen_rand_char())
+randchar = gen_rand_char()
 
 # src and log_dir are required in both commands.
 #src = args.src
@@ -375,6 +373,7 @@ def copy_to_snowball(tar_name, org_files_list, job_meta):
     collected_files_no = 0
     if (len(org_files_list) == 0):
         return 0
+
     ## Commend out this block to avoid misunderstandings for customer when they do testing.
     # # do not perform batch when there is only one file in file_list. Use mpu instead.
     # if (len(org_files_list) == 1):
@@ -396,11 +395,15 @@ def copy_to_snowball(tar_name, org_files_list, job_meta):
     #     return 1
     ##
 
-    job_meta['tar_num'] += 1
-    if compression == '':
-        tar_name = tar_name + '-' + str(job_meta['tar_num']) + '.tar'
-    elif compression == 'gz':
-        tar_name = tar_name + '-' + str(job_meta['tar_num']) + '.tgz'
+    lock.acquire()
+    try:
+        job_meta['tar_num'] += 1
+        if compression == '':
+            tar_name = tar_name + '-' + str(job_meta['tar_num']) + '.tar'
+        elif compression == 'gz':
+            tar_name = tar_name + '-' + str(job_meta['tar_num']) + '.tgz'
+    finally:
+        lock.release()
 
     with tarfile.open(fileobj=recv_buf, mode='w:' + compression) as tar:
         for file_name, obj_name, file_size in tqdm(org_files_list, desc=tar_name, bar_format='{l_bar}{bar:50}| {n_fmt}/{total_fmt}'):
@@ -415,8 +418,12 @@ def copy_to_snowball(tar_name, org_files_list, job_meta):
                 error_log_batch.info(file_meta_data)
 
     recv_buf.seek(0)
-    job_meta['batched_obj_num'] += collected_files_no            
-    job_meta['total_tar_size'] += + recv_buf.getbuffer().nbytes
+    lock.acquire()
+    try:
+        job_meta['batched_obj_num'] += collected_files_no            
+        job_meta['total_tar_size'] += + recv_buf.getbuffer().nbytes
+    finally:
+        lock.release()
     tar_meta_data = delimeter.join([tar_name, bucket_name, str(tar_file_size), str(collected_files_no)])
     try:
         if extract_flag:
@@ -431,7 +438,11 @@ def copy_to_snowball(tar_name, org_files_list, job_meta):
         s3_client.head_object(Bucket=bucket_name, Key=tar_name)
         success_log_upload.info(tar_meta_data)
         snow_transfer_full.info('%s was uploaded' % (tar_name))
-        job_meta['uploaded_obj_num'] += 1
+        lock.acquire()
+        try:
+            job_meta['uploaded_obj_num'] += 1
+        finally:
+            lock.release()
     except:
         error_log_upload.info(tar_meta_data)
     return collected_files_no
@@ -440,7 +451,7 @@ def upload_file(q, job_meta):
     global target_file_prefix
     while True:
         org_files_list = q.get()
-        tar_name = ('%ssnowball-%s-%s' % (target_file_prefix, current_time, randchar))
+        tar_name = ('%ssnowball-%s-%s' % (target_file_prefix, current_time, job_meta['random_str']))
         if org_files_list == quit_flag:
             break
         try:
@@ -517,6 +528,7 @@ def batch_and_upload():
     job_meta['batched_obj_num'] = 0
     job_meta['total_tar_size'] = 0
     job_meta['uploaded_obj_num'] = 0
+    job_meta['random_str'] = randchar
     upload_file_multi(src, file_list_queue, job_meta)
     snow_transfer_full.info('%d out of %d files were batched into %d tar files' % (job_meta['batched_obj_num'], job_meta['total_file_num'], job_meta['tar_num']))
     snow_transfer_full.info('Total size: %s' % (human_readable_size(job_meta['total_size'])))
@@ -539,6 +551,7 @@ if (args.cmd):
     create_logger()
 if (args.cmd == copy_command):
     set_up_transfer_config()
+lock = multiprocessing.Lock()
 # start main function
 if __name__ == '__main__':
     if (not args.cmd):
