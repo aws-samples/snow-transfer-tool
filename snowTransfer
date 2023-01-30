@@ -224,11 +224,24 @@ upload_log: {upload_logs}
 ignored_path_prefix: {ignored_path_prefix}'''
         snow_transfer_full.info(output_config)
 
-def write_to_file(dict):
+last_key = ''
+def write_to_file(dict, fl_type_creating, fl_type_done, is_last_write = False):
+    global last_key
     for key, value in dict.items():
+        if key != last_key:
+            if os.path.isfile(last_key):
+                snow_transfer_full.info("Changing the suffix of file %s from %s to %s" % (last_key, fl_type_creating, fl_type_done))
+                # Rename the file
+                os.rename(last_key, last_key.replace(fl_type_creating, fl_type_done, 1))
+            last_key = key
         with open(key, 'a') as f:
             for line in value:
                 f.write('%s\n' %line)
+    if (is_last_write):
+        if os.path.isfile(last_key):
+            snow_transfer_full.info("Changing the suffix of file %s from %s to %s" % (last_key, fl_type_creating, fl_type_done))
+            # Rename the file
+            os.rename(last_key, last_key.replace(fl_type_creating, fl_type_done, 1))
     return 0
 
 # error handler for ``shutil.rmtree``
@@ -263,7 +276,8 @@ def scan_recursive(src):
 def gen_filelist(src):
     sum_size = 0
     fl_prefix = 'fl_' + randchar + "_"
-    fl_type = '.txt'
+    fl_type_creating = '.creating'
+    fl_type_done = '.ready'
     fl_index = 1
     delimiter = ' '
     num_file_processed = 0
@@ -280,7 +294,7 @@ def gen_filelist(src):
             raise ValueError()
     snow_transfer_full.info('Generating file list by size %s bytes' % partition_size)
     for entry in scan_recursive(src):
-        fl_name = filelist_dir + '/' + device_folder_name + str(device_num) + '/' + fl_prefix + str(fl_index) + fl_type
+        fl_name = filelist_dir + '/' + device_folder_name + str(device_num) + '/' + fl_prefix + str(fl_index) + fl_type_creating
         file_name = entry.path
         f_size = entry.stat().st_size
         sum_size = sum_size + f_size
@@ -297,7 +311,7 @@ def gen_filelist(src):
                 device_num += 1
                 device_sum_size = 0
 
-            fl_name = filelist_dir + '/' + device_folder_name + str(device_num) + '/' + fl_prefix + str(fl_index) + fl_type
+            fl_name = filelist_dir + '/' + device_folder_name + str(device_num) + '/' + fl_prefix + str(fl_index) + fl_type_creating
             sum_size = f_size
 
         if (not isPathExsits(filelist_dir + '/' + device_folder_name + str(device_num))) :
@@ -314,10 +328,10 @@ def gen_filelist(src):
         # flush the dict every 100000 file to avoid OOM
         if (num_file_processed % 100000 == 0):
             snow_transfer_full.info('Number of scanned file: %d', num_file_processed)
-            write_to_file(file_target_mp)
+            write_to_file(file_target_mp, fl_type_creating, fl_type_done)
             file_target_mp = dict()
     # write the remaining info to file
-    write_to_file(file_target_mp)
+    write_to_file(file_target_mp, fl_type_creating, fl_type_done, True)
     snow_transfer_full.info('Part #%d: size = %d' % (fl_index, sum_size))
     snow_transfer_full.info('Number of scanned file: %d, symlink and empty folders were ignored', num_file_processed)
     snow_transfer_full.info('File lists are generated!!')
