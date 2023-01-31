@@ -224,6 +224,7 @@ upload_log: {upload_logs}
 ignored_path_prefix: {ignored_path_prefix}'''
         snow_transfer_full.info(output_config)
 
+#Adding this to store the previous state so that we can change the file suffix when one file list was fully generated
 last_key = ''
 def write_to_file(dict, fl_type_creating, fl_type_done, is_last_write = False):
     global last_key
