@@ -44,8 +44,8 @@ jobs:
       run: |
         pytest
     - name: Build artifact
-    - run: pyinstaller --onefile snowTransfer
+      run: pyinstaller --onefile snowTransfer
     - name: Upload artifact
-    - uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v2
       with:
         path: dist/*
