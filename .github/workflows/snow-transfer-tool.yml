@@ -52,13 +52,15 @@ jobs:
         role-session-name: s3rolesession
         aws-region: us-east-1
     # Upload a file to AWS s3
-    - name:  Copy snowTransferTool to s3
+    - name:  Copy Windows version snowTransferTool to s3
       if: runner.os == 'Windows'
       run: |
         aws s3 cp ./dist/snowTransfer s3://${{ secrets.AWS_BUCKET }}/windows/
+    - name:  Copy Linux version snowTransferTool to s3
       if: runner.os == 'Linux'
       run: |
         aws s3 cp ./dist/snowTransfer s3://${{ secrets.AWS_BUCKET }}/linux/
+    - name:  Copy MacOS version snowTransferTool to s3
       if: runner.os == 'macOS'
       run: |
         aws s3 cp ./dist/snowTransfer s3://${{ secrets.AWS_BUCKET }}/macos/
