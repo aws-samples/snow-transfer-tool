@@ -58,13 +58,13 @@ jobs:
     - name:  Copy Windows version snowTransferTool to s3
       if: runner.os == 'Windows'
       run: |
-        aws s3 cp ./dist/snowTransfer s3://${{ secrets.AWS_BUCKET }}/windows/
+        aws s3 cp ./dist/ s3://${{ secrets.AWS_BUCKET }}/windows/ --recursive
     - name:  Copy Linux version snowTransferTool to s3
       if: runner.os == 'Linux'
       run: |
-        aws s3 cp ./dist/snowTransfer s3://${{ secrets.AWS_BUCKET }}/linux/
+        aws s3 cp ./dist/ s3://${{ secrets.AWS_BUCKET }}/linux/ --recursive
     - name:  Copy MacOS version snowTransferTool to s3
       if: runner.os == 'macOS'
       run: |
-        aws s3 cp ./dist/snowTransfer s3://${{ secrets.AWS_BUCKET }}/macos/
+        aws s3 cp ./dist/ s3://${{ secrets.AWS_BUCKET }}/macos/ --recursive
   
