@@ -20,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ['macos-latest']
+        os: ['macos-latest', 'ubuntu-latest', 'windows-latest']
 
     steps:
     - uses: actions/checkout@v3
@@ -53,6 +53,13 @@ jobs:
         aws-region: us-east-1
     # Upload a file to AWS s3
     - name:  Copy snowTransferTool to s3
+      if: runner.os == 'Windows'
       run: |
-        aws s3 cp ./dist/snowTransfer s3://${{ secrets.AWS_BUCKET }}/
+        aws s3 cp ./dist/snowTransfer s3://${{ secrets.AWS_BUCKET }}/windows/
+      if: runner.os == 'Linux'
+      run: |
+        aws s3 cp ./dist/snowTransfer s3://${{ secrets.AWS_BUCKET }}/linux/
+      if: runner.os == 'macOS'
+      run: |
+        aws s3 cp ./dist/snowTransfer s3://${{ secrets.AWS_BUCKET }}/macos/
   
