@@ -44,11 +44,14 @@ jobs:
         pytest
     - name: Build artifact
       run: pyinstaller --onefile snowTransfer
-    - name: Upload artifact
-      uses: shallwefootball/s3-upload-action@master
+    - name: Configure aws credentials
+      uses: aws-actions/configure-aws-credentials@v1
       with:
-        aws_key_id: ${{ secrets.AWS_KEY_ID }}
-        aws_secret_access_key: ${{ secrets.AWS_SECRET_ACCESS_KEY}}
-        aws_bucket: ${{ secrets.AWS_BUCKET }}
-        source_dir: 'dist'
+        role-to-assume: arn:aws:iam::842811333022:role/github-s3-role
+        role-session-name: s3rolesession
+        aws-region: us-east-1
+    # Upload a file to AWS s3
+    - name:  Copy snowTransferTool to s3
+      run: |
+        aws s3 cp ./dist/snowTransfer s3://${{ secrets.AWS_BUCKET }}/
   
