@@ -262,10 +262,7 @@ def isPathEmpty(path):
             return False
     
 def isPathExsits(path):
-    if os.path.isdir(path):
-        return True
-    else :
-        return False
+    return os.path.isdir(path)
 
 def scan_recursive(src):
     for entry in os.scandir(src):
@@ -389,26 +386,29 @@ def copy_to_snowball(tar_name, org_files_list, job_meta):
     if (len(org_files_list) == 0):
         return 0
 
-    ## Commend out this block to avoid misunderstandings for customer when they do testing.
-    # # do not perform batch when there is only one file in file_list. Use mpu instead.
-    # if (len(org_files_list) == 1):
-    #     file_name, obj_name, file_size = org_files_list[0]
-    #     file_meta_data = delimeter.join([file_name, obj_name, str(file_size)])
-    #     error_log_batch.info(file_meta_data)
-    #     try:
-    #         s3_client.upload_file(file_name, bucket_name, obj_name, Config=transfer_config)
-    #     except Exception as e:
-    #         snow_transfer_full.error(str(e))
-    #         error_log_upload.info(file_meta_data)
-    #     try:
-    #         s3_client.head_object(Bucket=bucket_name, Key=obj_name)
-    #         success_log_upload.info(file_meta_data)
-    #         snow_transfer_full.info('%s was uploaded' % (file_name))
-    #         job_meta['uploaded_obj_num'] += 1
-    #     except:
-    #         error_log_upload.info(file_meta_data)
-    #     return 1
-    ##
+    # do not perform batch when there is only one file in file_list because this could be an very large file 
+    # that could not tar in memory. Use mpu instead.
+    if (len(org_files_list) == 1):
+        file_name, obj_name, file_size = org_files_list[0]
+        file_meta_data = delimeter.join([file_name, obj_name, str(file_size)])
+        error_log_batch.info(file_meta_data)
+        try:
+            s3_client.upload_file(file_name, bucket_name, obj_name, Config=transfer_config)
+        except Exception as e:
+            snow_transfer_full.error(str(e))
+            error_log_upload.info(file_meta_data)
+        try:
+            s3_client.head_object(Bucket=bucket_name, Key=obj_name)
+            success_log_upload.info(file_meta_data)
+            snow_transfer_full.info('%s was uploaded' % (file_name))
+            lock.acquire()
+            try:
+                job_meta['uploaded_obj_num'] += 1
+            finally:
+                lock.release()
+        except:
+            error_log_upload.info(file_meta_data)
+        return 1
 
     lock.acquire()
     try:
@@ -504,18 +504,18 @@ def push_file_to_list(sum_size, org_files_list, file_name, sub_prefix, q, job_me
     return (org_files_list, sum_size)
 
 # get files to upload
-def upload_get_files(sub_prefix, q, job_meta):
+def upload_get_files(q, job_meta):
     sum_size = 0
     org_files_list = []
-    if (os.path.isfile(sub_prefix)):
+    if (os.path.isfile(src)):
         snow_transfer_full.info("Uploading from file partition list, please make sure the partition file contains your files' absolute path")
-        with open(sub_prefix) as src_file:
+        with open(src) as src_file:
             while True:
                 file_name = src_file.readline().split(' ')[0]
                 if not file_name:
                     break
                 if (os.path.isfile(file_name)):
-                    org_files_list, sum_size = push_file_to_list(sum_size, org_files_list, file_name, sub_prefix, q, job_meta, ignored_path_prefix, True)
+                    org_files_list, sum_size = push_file_to_list(sum_size, org_files_list, file_name, src, q, job_meta, ignored_path_prefix, True)
             # put remained files into queue
             q.put(org_files_list)
         return     
@@ -523,14 +523,14 @@ def upload_get_files(sub_prefix, q, job_meta):
    # get all files from given directory
     for entry in scan_recursive(src):
         file_name = entry.path
-        org_files_list, sum_size = push_file_to_list(sum_size, org_files_list, file_name, sub_prefix, q, job_meta)
+        org_files_list, sum_size = push_file_to_list(sum_size, org_files_list, file_name, src, q, job_meta)
     # put remained files into queue
     q.put(org_files_list)
 
-def upload_file_multi(src, file_list_queue, job_meta):
+def upload_file_multi(file_list_queue, job_meta):
     p_list = run_multip(max_process, upload_file, file_list_queue, job_meta)
     # get object list and ingest to processes
-    upload_get_files(src, file_list_queue, job_meta)
+    upload_get_files(file_list_queue, job_meta)
     # sending quit_flag and join processes
     finishq(file_list_queue, p_list)
 
@@ -544,7 +544,7 @@ def batch_and_upload():
     job_meta['total_tar_size'] = 0
     job_meta['uploaded_obj_num'] = 0
     job_meta['random_str'] = randchar
-    upload_file_multi(src, file_list_queue, job_meta)
+    upload_file_multi(file_list_queue, job_meta)
     snow_transfer_full.info('%d out of %d files were batched into %d tar files' % (job_meta['batched_obj_num'], job_meta['total_file_num'], job_meta['tar_num']))
     snow_transfer_full.info('Total size: %s' % (human_readable_size(job_meta['total_size'])))
     snow_transfer_full.info('Total size after batching: %s' % (human_readable_size(job_meta['total_tar_size'])))
