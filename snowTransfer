@@ -49,7 +49,7 @@ parser_b.add_argument('--aws_access_key_id', help='aws access key id', action='s
 parser_b.add_argument('--aws_secret_access_key', help='aws secret access key', action='store', default='')
 parser_b.add_argument('--prefix_root', help='prefix root e) dir1/', action='store', default='')
 parser_b.add_argument('--max_process', help='max number of process e) 5', action='store', default=5, type=int)
-parser_b.add_argument('--max_tarfile_size', help='size limit of batched files e) 1Gb', action='store', default='1Gb')
+parser_b.add_argument('--partition_size', help='size limit of batched files e) 1Gb', action='store', default='1Gb')
 parser_b.add_argument('--max_files', help='max number of file that each tar file contains e) 100000', action='store', default=100000, type=int)
 parser_b.add_argument('--compression', help='True|False compress file to "gz" format', action='store', default='False', type=bool)
 parser_b.add_argument('--extract_flag', help='True|False; Set the autoextract flag', action='store', default='True', type=bool)
@@ -99,7 +99,7 @@ if (args.cmd == copy_command):
     aws_secret_access_key = args.aws_secret_access_key
     endpoint = args.endpoint
     max_process = args.max_process
-    max_tarfile_size = humanfriendly.parse_size(args.max_tarfile_size, binary=True) # 10GiB, 100GiB is max limit of snowball
+    max_tarfile_size = humanfriendly.parse_size(args.partition_size, binary=True) # 10GiB, 100GiB is max limit of snowball
     max_files = args.max_files
     compression = 'gz' if args.compression else '' # default for no compression, "gz" to enable
     target_file_prefix = args.target_file_prefix
@@ -168,7 +168,7 @@ def setup_config(cmd):
         list_of_globals['aws_access_key_id'] = config[copy_command.upper()]['aws_access_key_id']
         list_of_globals['aws_secret_access_key'] = config[copy_command.upper()]['aws_secret_access_key']
         list_of_globals['max_process'] = int(config[copy_command.upper()]['max_process'])
-        list_of_globals['max_tarfile_size'] = humanfriendly.parse_size(config[copy_command.upper()]['max_tarfile_size'], binary=True)
+        list_of_globals['max_tarfile_size'] = humanfriendly.parse_size(config[copy_command.upper()]['partition_size'], binary=True)
         list_of_globals['max_files'] = int(config[copy_command.upper()]['max_files'])
         list_of_globals['compression'] = 'gz' if eval(config[copy_command.upper()]['compression'].capitalize()) else ''
         list_of_globals['target_file_prefix'] = config[copy_command.upper()]['target_file_prefix']
@@ -215,7 +215,7 @@ log_dir: {log_dir}
 profile_name: {profile_name}
 prefix_root: {prefix_root}
 max_process: {max_process}
-max_tarfile_size: {human_readable_size(max_tarfile_size)}
+partition_size: {human_readable_size(max_tarfile_size)}
 max_files: {max_files}
 compression: {bool(compression)}
 target_file_prefix: {target_file_prefix}
@@ -413,10 +413,11 @@ def copy_to_snowball(tar_name, org_files_list, job_meta):
     lock.acquire()
     try:
         job_meta['tar_num'] += 1
+        tmp_name = '' if os.path.isfile(src) else  '-' + str(job_meta['tar_num'])
         if compression == '':
-            tar_name = tar_name + '-' + str(job_meta['tar_num']) + '.tar'
+            tar_name = tar_name + tmp_name + '.tar'
         elif compression == 'gz':
-            tar_name = tar_name + '-' + str(job_meta['tar_num']) + '.tgz'
+            tar_name = tar_name + tmp_name + '.tgz'
     finally:
         lock.release()
 
@@ -466,7 +467,7 @@ def upload_file(q, job_meta):
     global target_file_prefix
     while True:
         org_files_list = q.get()
-        tar_name = ('%ssnowball-%s-%s' % (target_file_prefix, current_time, job_meta['random_str']))
+        tar_name = ('%ssnowball-%s-%s' % (target_file_prefix, current_time, os.path.basename(src) if os.path.isfile(src) else job_meta['random_str'] ))
         if org_files_list == quit_flag:
             break
         try:
@@ -523,6 +524,7 @@ def upload_get_files(q, job_meta):
    # get all files from given directory
     for entry in scan_recursive(src):
         file_name = entry.path
+        print(entry.path)
         org_files_list, sum_size = push_file_to_list(sum_size, org_files_list, file_name, src, q, job_meta)
     # put remained files into queue
     q.put(org_files_list)

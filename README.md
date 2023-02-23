@@ -133,7 +133,7 @@ aws_access_key_id =
 aws_secret_access_key = 
 prefix_root = share1/
 max_process = 5
-max_tarfile_size = 1Gb
+partition_size = 1Gb
 max_files = 100000
 extract_flag = True
 target_file_prefix =
@@ -172,7 +172,7 @@ log_dir: /home/logs/snowball1
 
 ### upload 
 
-This command helps you batch and upload your files to snowball automatically. The batching and uploading are happened in your hosts' memory so there is no extra disk space needed. However, you need to make sure the number of processes times the max_tarfile_size is less than the memory size you provisioned.
+This command helps you batch and upload your files to snowball automatically. The batching and uploading are happened in your hosts' memory so there is no extra disk space needed. However, you need to make sure the number of processes times the partition_size is less than the memory size you provisioned.
 
 During the file traversal, all the symlinks and empty folders will be ignored.
 
@@ -216,13 +216,13 @@ During the file traversal, all the symlinks and empty folders will be ignored.
 
   Max number of process for batching and uploading.
 
-* **max_tarfile_size: str, int** (default 1gb)
+* **partition_size: str, int** (default 1gb)
 
-  Size limit of a single batched file, e.g. 1Gb. or 1073741824. You can set this to a number representing total byte or a human readable value like '1Gib'.Strings like 1gb, 1Gib, 2MB and 0.5 gib are all supported. Please note the we consider 'b' the same as 'ib', which is defined as base 1024. If a file size is even larger than the the max_tarfile_size, the file will not be batched and will be directly uploaded to snowball. Configure **max_tarfile_size** and the **max_files** options together to control how files are batched.
+  Size limit of a single batched file, e.g. 1Gb. or 1073741824. You can set this to a number representing total byte or a human readable value like '1Gib'.Strings like 1gb, 1Gib, 2MB and 0.5 gib are all supported. Please note the we consider 'b' the same as 'ib', which is defined as base 1024. If a file size is even larger than the the partition_size, the file will not be batched and will be directly uploaded to snowball. Configure **partition_size** and the **max_files** options together to control how files are batched.
 
 * **max_files, int** (default 100000)
 
-  Max number of file that each tar file will contains. Configure **max_tarfile_size** and the **max_files** options together to control how files are batched.
+  Max number of file that each tar file will contains. Configure **partition_size** and the **max_files** options together to control how files are batched.
 
 * **extract_flag: bool** (default True)
 
@@ -282,7 +282,7 @@ aws_access_key_id =
 aws_secret_access_key = 
 prefix_root = share1/
 max_process = 5
-max_tarfile_size = 1Gb
+partition_size = 1Gb
 max_files = 100000
 extract_flag = True
 target_file_prefix =
@@ -315,7 +315,7 @@ log_dir: /home/logs/snowball1
 profile_name: default
 prefix_root: share1/
 max_process: 5
-max_tarfile_size: 5.00 MiB
+partition_size: 5.00 MiB
 max_files: 100000
 compression: False
 target_file_prefix: 
@@ -367,7 +367,7 @@ log_dir: /home/logs/snowball1
 profile_name: default
 prefix_root: dir1/
 max_process: 5
-max_tarfile_size: 5.00 MiB
+partition_size: 5.00 MiB
 max_files: 100000
 compression: False
 target_file_prefix:
