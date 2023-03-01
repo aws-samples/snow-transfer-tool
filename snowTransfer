@@ -512,11 +512,14 @@ def upload_get_files(q, job_meta):
         snow_transfer_full.info("Uploading from file partition list, please make sure the partition file contains your files' absolute path")
         with open(src) as src_file:
             while True:
-                file_name = src_file.readline().split(' ')[0]
+                # split from the end of the string to handle space in file names.
+                file_name = src_file.readline().rsplit(' ', 1)[0]
                 if not file_name:
                     break
                 if (os.path.isfile(file_name)):
-                    org_files_list, sum_size = push_file_to_list(sum_size, org_files_list, file_name, src, q, job_meta, ignored_path_prefix, True)
+                    tmp = push_file_to_list(sum_size, org_files_list, file_name, src, q, job_meta, ignored_path_prefix, True)
+                    if (tmp):
+                        org_files_list, sum_size = tmp
             # put remained files into queue
             q.put(org_files_list)
         return     
@@ -525,7 +528,9 @@ def upload_get_files(q, job_meta):
     for entry in scan_recursive(src):
         file_name = entry.path
         print(entry.path)
-        org_files_list, sum_size = push_file_to_list(sum_size, org_files_list, file_name, src, q, job_meta)
+        tmp = push_file_to_list(sum_size, org_files_list, file_name, src, q, job_meta)
+        if (tmp):
+            org_files_list, sum_size = tmp
     # put remained files into queue
     q.put(org_files_list)
 
