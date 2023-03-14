@@ -346,7 +346,7 @@ def set_up_transfer_config():
     session = boto3.Session(profile_name=profile_name)
     if (aws_secret_access_key and aws_secret_access_key):
         session = boto3.Session(region_name='snow', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
-    s3_client = session.client('s3', endpoint_url=endpoint, verify=False)
+    s3_client = session.client('s3', endpoint_url=endpoint)
 
 # execute multi-threading
 def run_multip(max_process, exec_func, q, job_meta):
