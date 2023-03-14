@@ -527,7 +527,6 @@ def upload_get_files(q, job_meta):
    # get all files from given directory
     for entry in scan_recursive(src):
         file_name = entry.path
-        print(entry.path)
         tmp = push_file_to_list(sum_size, org_files_list, file_name, src, q, job_meta)
         if (tmp):
             org_files_list, sum_size = tmp
