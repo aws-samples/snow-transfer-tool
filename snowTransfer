@@ -14,6 +14,7 @@ import string
 import sys
 import tarfile
 import traceback
+import hashlib
 from boto3.s3.transfer import TransferConfig
 from datetime import datetime
 from tqdm import tqdm
@@ -382,6 +383,7 @@ def copy_to_snowball(tar_name, org_files_list, job_meta):
     delimeter = ', '
     tar_file_size = 0
     recv_buf = io.BytesIO()
+    md5 = hashlib.md5()    # create an MD5 hash object
     collected_files_no = 0
     if (len(org_files_list) == 0):
         return 0
@@ -440,7 +442,9 @@ def copy_to_snowball(tar_name, org_files_list, job_meta):
         job_meta['total_tar_size'] += + recv_buf.getbuffer().nbytes
     finally:
         lock.release()
-    tar_meta_data = delimeter.join([tar_name, bucket_name, str(tar_file_size), str(collected_files_no)])
+    # Get the MD5 checksum of the tar file
+    md5.update(recv_buf.getbuffer())
+    tar_meta_data = delimeter.join([tar_name, bucket_name, str(tar_file_size), str(collected_files_no), md5.hexdigest()])
     try:
         if extract_flag:
             s3_client.upload_fileobj(recv_buf, bucket_name, tar_name, ExtraArgs={'Metadata': {'snowball-auto-extract': 'true', 'snowball-auto-batch': 'true'},'StorageClass': 'STANDARD'}, Config=transfer_config)
