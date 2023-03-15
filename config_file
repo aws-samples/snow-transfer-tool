@@ -15,6 +15,7 @@ log_dir = /home/logs/snowball1
 compression = False
 upload_logs = True
 ignored_path_prefix =
+md5 = False
 [GENLIST]
 filelist_dir = /home/listfiles/snowball1
 partition_size = 10GB
