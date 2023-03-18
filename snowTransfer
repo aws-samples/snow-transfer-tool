@@ -104,8 +104,6 @@ if (args.cmd == partition_command):
     partition_size = humanfriendly.parse_size(args.partition_size, binary=True)
     device_capacity = humanfriendly.parse_size(args.device_capacity, binary=True)
 
-print(args.compression)
-
 if (args.cmd == copy_command):
     # src and log_dir are required in both commands.
     src = args.src
