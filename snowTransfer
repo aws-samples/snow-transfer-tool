@@ -20,6 +20,15 @@ from tqdm import tqdm
 
 warnings.filterwarnings('ignore', message='Unverified HTTPS request')
 
+def str2bool(value):
+    if value.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif value.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
 quit_flag = 'DONE'
 current_time = datetime.now().strftime('%Y%m%d_%H%M%S')
 partition_command = 'gen_list'
@@ -51,10 +60,10 @@ parser_b.add_argument('--prefix_root', help='prefix root e) dir1/', action='stor
 parser_b.add_argument('--max_process', help='max number of process e) 5', action='store', default=5, type=int)
 parser_b.add_argument('--partition_size', help='size limit of batched files e) 1Gb', action='store', default='1Gb')
 parser_b.add_argument('--max_files', help='max number of file that each tar file contains e) 100000', action='store', default=100000, type=int)
-parser_b.add_argument('--compression', help='True|False compress file to "gz" format', action='store', default='False', type=bool)
-parser_b.add_argument('--extract_flag', help='True|False; Set the autoextract flag', action='store', default='True', type=bool)
+parser_b.add_argument('--compression', help='True|False compress file to "gz" format', action='store', default="False", type=str2bool, choices=[True, False])
+parser_b.add_argument('--extract_flag', help='True|False; Set the autoextract flag', action='store', default="True", type=str2bool, choices=[True, False])
 parser_b.add_argument('--target_file_prefix', help='prefix of the target file we are creating into the snowball', action='store', default='')
-parser_b.add_argument('--upload_logs', help='True|False; Upload the generated logs to Snowball and S3', action='store', default='False', type=bool)
+parser_b.add_argument('--upload_logs', help='True|False; Upload the generated logs to Snowball and S3', action='store', default="True", type=str2bool, choices=[True, False])
 parser_b.add_argument('--ignored_path_prefix', help='The path prefix need to be ignored when source is partition file', action='store', default='')
 
 # parse argument lists
@@ -74,6 +83,14 @@ def gen_rand_char():
     char_set = string.ascii_uppercase + string.digits
     return (''.join(random.sample(char_set*6, 6)))
 randchar = gen_rand_char()
+
+def str2bool(value):
+    if value.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif value.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
 
 # src and log_dir are required in both commands.
 #src = args.src
@@ -346,7 +363,7 @@ def set_up_transfer_config():
     session = boto3.Session(profile_name=profile_name)
     if (aws_secret_access_key and aws_secret_access_key):
         session = boto3.Session(region_name='snow', aws_access_key_id=aws_access_key_id, aws_secret_access_key=aws_secret_access_key)
-    s3_client = session.client('s3', endpoint_url=endpoint, verify=False)
+    s3_client = session.client('s3', endpoint_url=endpoint)
 
 # execute multi-threading
 def run_multip(max_process, exec_func, q, job_meta):
@@ -527,7 +544,6 @@ def upload_get_files(q, job_meta):
    # get all files from given directory
     for entry in scan_recursive(src):
         file_name = entry.path
-        print(entry.path)
         tmp = push_file_to_list(sum_size, org_files_list, file_name, src, q, job_meta)
         if (tmp):
             org_files_list, sum_size = tmp
