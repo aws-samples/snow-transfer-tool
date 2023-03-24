@@ -480,7 +480,12 @@ def conv_obj_name(file_name, prefix_root, sub_prefix):
         obj_name = prefix_root + \
             file_name.replace('\\', '/').replace(sub_prefix, '', 1)
     else:
-        obj_name = prefix_root + file_name.replace(sub_prefix, '', 1)
+        file_name = file_name.replace(sub_prefix, '', 1)
+        if (file_name[0] == '/'):
+            file_name = file_name[1:]
+        obj_name = prefix_root + file_name
+    if (len(sub_prefix) == 0 and obj_name[0] == '/'):
+        obj_name = obj_name[1:]
     return obj_name
 
 
@@ -692,7 +697,7 @@ def batch_and_upload():
 
 def upload_log():
     for file in log_list:
-        s3_client.upload_file(file, bucket_name, file)
+        s3_client.upload_file(file, bucket_name, file[1:])
     snow_transfer_full.info('Log files were uploaded!')
 
 # set up config outside of main function to support Windows "spawn" mechanism of starting new processes
