@@ -1,41 +1,40 @@
 # Snow Transfer Tool
 ## Introduction
-Migrating large amount of small files to the cloud is challenging because of the increased time to transfer and cost implications. Customers often use [AWS Snowball](https://aws.amazon.com/snowball/?nc2=type_a&whats-new-cards.sort-by=item.additionalFields.postDateTime&whats-new-cards.sort-order=desc) for bulk-data migrations to the cloud when there are connectivity limitations, bandwidth constraints, and high network costs. When you transfer small files to any system there are performance implications and batching is a key solution. This tool is built on top of Yongki Kim’s [s3booster](https://github.com/aws-samples/s3booster-snowball) script to automate batching small files to improve copy performance to Snowball devices.
+Migrating large amounts of small files to the cloud is challenging because of the increased transfer time and cost implications. [AWS Snowball] (https://aws.amazon.com/snowball/) is commonly used by customers for bulk data migration to the cloud when facing connectivity limitations, bandwidth constraints, and high network costs. The transfer of large amounts of small files to any system can result in performance issues, to which one solution  is to batch them. To enhance copy performance to Snowball devices, this tool is created using Yongki Kim's [s3booster] (https://github.com/aws-samples/s3booster-snowball) script and automates the batching of small files.
 
 ## Install
 
 ### Prerequisites 
 
-Please make sure Python3 is installed.
+Python 3.
 
-### Mac & Linux
+### On Mac/Linux
 
-Open terminal and execute:
+Run `install.sh`:
 
 ```
 ./install.sh
 ```
 
-### Windows
+### On Windows
 
-Double click or open cmd or powershell to execute:
+Double click or execute `install.bat` in cmd/powershell:
 
 ```
 install.bat
 ```
 
-For windows installation we will not add the command to your PATH environment variable. To be able to use it globally please manually add it to PATH.
+For Windows installation, the command is not added to your PATH environment variable by default. To use the command globally, please manually add it to PATH.
 
 ## Using snowTransfer
 
-snowTransfer tool provides two command: *gen_list* and *upload*
-
+snowTransfer tool offers two command: *gen_list* and *upload*.
 
 ### gen_list
 
-This command helps you separate large data set by total size. It traverses your src directory recursively and produces multiple file partition lists. Each line of a partition file is the absolute path of a file that stores inside your src directory. The sum of the file size of one partition file will not be larger than the max-size you configured. 
+This command groups large datasets of small files by a preconfigured size. It traverses the source directory recursively and produces multiple file partition lists. Each line of a partition file is the absolute path of a file that is stored inside your src directory. The size of a single partition file will not exceed the configured maximum size limit.
 
-For example, consider directory  `/data` contains 10 file 1.txt, 2.txt, ..., 10.txt. Each .txt file has the file size of 10 mb. If we set the max-size to 30mb. The output will be 4 partition files that have following contents:
+For example, say the directory  `/data` has 10 files: 1.txt, 2.txt, ..., 10.txt. Each .txt file is of 10 MB size. If we set the max size to 30 MB, the output will be 4 partition files as follows:
 
 File partition 1:
 
@@ -67,9 +66,9 @@ File partition 4:
 /data/10.txt
 ```
 
-During directory traversal, all the symlink and empty folders will be ignored. Only the path of file will be appended to the file partition list. If a file size is even larger than the the partition_size, there will also be a file partition list generated. This partition file will contain only one line (the path of that file).
+During directory traversal, all the symlinks and empty folders will be ignored. Only the paths of actual files will be appended to the partition list. If a file size is larger than the partition_size, there will also be a file partition list generated. This partition file will contain only one line (the path of that file).
 
-This command also provides a way to help you seperate your large data sets by device size, which enables you to transfer files into multiple snowballs in parallel without worrying about exceeding device capacity. For example, if you have 240TB of data in your datacenter to be upload to Snowball Edge with stroage optimized (80TB of capacity), you can set the device_capacity to 80TB. After running the gen_list command, there will be 3 or 4 subfolder under the filelist_dir. The sum of size of all partitions inside one subfolder will be less or equal to 80TB.
+This command also provides a way to help divide large datasets by device size, which makes it possible to transfer files into multiple snowballs in parallel without worrying about exceeding device capacity. For example, if there is 240TB of data to be uploaded to Snowball Edge Storage Optimized devices (80TB capacity), you can set the device_capacity to 80TB. After running the gen_list command, there will be 3 or 4 sub folders under the filelist_dir. The total size of all partitions inside one sub folder will be less or equal to 80TB.
 
 #### Configuration
 
@@ -81,15 +80,15 @@ This command also provides a way to help you seperate your large data sets by de
 
 * **--partition_size: int, str** (default '10GB')
 
-  Size limit for each partition, e.g. 1Gb or 1073741824. You can set this to a number representing total byte or a human readable value like '1Gib'. Strings like 1gb, 1Gib, 2MB and 0.5 gib are all supported. Please note the we consider 'b' the same as 'ib', which is defined as base 1024. If a file size is even larger than the the partition_size, there will also be a partition file generated. This partition file will contain only one line (the path of that file).
+  Size limit for each partition, e.g. 1GB or 1073741824 Bytes. You can set this to a number representing total bytes or a human-readable value like '1Gib'. Strings like 1gb, 1Gib, 2MB and 0.5 gib are all supported. Please note that we consider 'b' the same as 'ib', which is defined as base 1024. If a file size is larger than the partition_size, there will also be a partition file generated. This partition file will contain only one line (the path of that file).
 
 * **--device_capacity: int, str** (default '80TB')
 
-  Size limit for one snowball device. You can set this to a number representing total byte or a human readable value like '80TB'. Strings like 10tb, 10Tib, 20TB and 0.5 tib are all supported. Please note the we consider 'b' the same as 'ib', which is defined as base 1024. Set this option correctly if you have a data set with size larger than the capacity of one snowball.
+  Size limit for a snowball device. You can set this to a number representing total byte or a human-readable value like '80TB'. Strings like 10tb, 10Tib, 20TB and 0.5 tib are all supported. Please note that we consider 'b' the same as 'ib', which is defined as base 1024. Set this option correctly if you have a dataset with size larger than the capacity of a single snowball.
 
 * **--src: str**
 
-  Source directory, e.g. /data. The directoy for gen_list to traverse. 
+  Source directory, e.g. /data. The directory for gen_list to traverse. 
 
 * **--log_dir: str**
 
@@ -97,9 +96,9 @@ This command also provides a way to help you seperate your large data sets by de
 
 * **--config_file: str**
 
-  Path of the config file, e.g. ./config. If this argument is not present in command line, --src, --filelist_dir, --partition_size, and --log_dir are required
+  Path to the config file, e.g. ./config. There are two ways to configure the command: using command line argument or a config file. If a config file is not specified via this argument in command line, all the following arguments are required: --src, --filelist_dir, --partition_size, and --log_dir. 
 
-We provide two ways to configure the file: by using command line and by using config file.
+  
 
 ##### Configure using command line
 
@@ -111,7 +110,7 @@ snowTransfer gen_list --filelist_dir = /tmp/output --partition_size = 30Mb src =
 
 ##### Configure using configuration file
 
-To make configuration simple and easy reusable, we could also provide a configuration file to configure program.
+To make configuration simple and easily reusable, we could also use a configuration file.
 
 Example:
 
@@ -119,7 +118,7 @@ Example:
 snowTransfer gen_list --config_file config_file
 ```
 
-A template of config file is also provided. Please modify the arguments under '[GENLIST]' if you choose to use configuration file. Also please do not modify the any contents before "=". The program will not be able to identify them if the argument names are different.
+See below for a config file template. Please modify the arguments under `[GENLIST]` if you choose to use a configuration file. Do not modify anything before `=`. The program will not be able to identify them if the argument names are different.
 
 Configuration file template:
 
@@ -149,12 +148,12 @@ src = /share1
 log_dir = /home/logs/snowball1
 ```
 
-Please note that if a arguments was set in both command line and configuration file, the configuration file takes precedence. 
+Please note that if an argument is set both through command line and in a configuration file, the configuration file value takes precedence. 
 
 #### Example Output
 
 ```bash
-➜  snow-transfer-tool git:(main) ✗ snowTransfer gen_list --config_file config_file                                                                           
+➜ snowTransfer gen_list --config_file config_file
 2022-09-14 10:54:30,275 : print_setting : [INFO] : 
 Command: gen_list
 src: /share1
@@ -172,9 +171,9 @@ log_dir: /home/logs/snowball1
 
 ### upload 
 
-This command helps you batch and upload your files to snowball automatically. The batching and uploading are happened in your hosts' memory so there is no extra disk space needed. However, you need to make sure the number of processes times the partition_size is less than the memory size you provisioned.
+This command helps batch and upload files to snowball automatically. The batching and uploading happen in the host memory so no extra disk space is needed. However, the number of processes times the partition_size must be less than the provisioned memory size: `number of processes provisioned ✕ partition_size < provisioned memory size`.
 
-During the file traversal, all the symlinks and empty folders will be ignored.
+During file traversal, all symlinks and empty folders are ignored.
 
 #### Configuration
 
@@ -182,19 +181,19 @@ During the file traversal, all the symlinks and empty folders will be ignored.
 
 * **bucket_name: str**
 
-  Your bucket name, e.g. sbe-bucket-a. (Please do not add the 's3://' prefix)
+  Bucket name, e.g. sbe-bucket-a. (Please do not add the 's3://' prefix.)
 
 * **src: str**
 
-  This can be a source directory, e.g. /data, or a partition file, e.g. /manifest_file. Files inside the src directory and paritition file will be batched to a larger tar and be uploaded. 
+  This can be a source directory, e.g. /data, or a partition file, e.g. /manifest_file. Files inside the src directory or partition file will be batched to a larger tar and uploaded. 
 
 * **endpoint: str**
 
-  Snowball http endpoint, e.g.  http://10.10.10.10:8080
+  Snowball http endpoint, e.g. http://10.10.10.10:8080.
 
 * **log_dir: str** 
 
-  Directory that stores log files, e.g. /tmp/log
+  Directory that stores log files, e.g. /tmp/log.
 
 * **profile_name: str** (default 'default')
 
@@ -202,53 +201,51 @@ During the file traversal, all the symlinks and empty folders will be ignored.
 
 * **aws_access_key_id: str** (default '')
 
-  AWS aws_access_key_id.
+  aws_access_key_id.
 
 * **aws_secret_access_key: str** (default '')
 
-  AWS aws_secret_access_key. 
+  aws_secret_access_key. 
 
 * **prefix_root: str** (default "")
 
-  Prefix root, e.g. dir1/. The root you want to add before all files when uploading to snowball. For example, if you set src to '/data' and prefix_root to 'dir1/', the file path for file '/data/file1' will be '/dir1/data/file1' in snowball and eventually in you s3 bucket.
+  Prefix root, e.g. dir1/. The root to add before all files when uploaded to snowball. For example, if src is set to '/data' and prefix_root to 'dir1/', the file path for file '/data/file1' will be '/dir1/data/file1' in snowball and similarly in the destination s3 bucket.
 
 * **max_process, int** (default 5)
 
-  Max number of process for batching and uploading.
+  Max number of processes for batching and uploading.
 
-* **partition_size: str, int** (default 1gb)
+* **max_tarfile_size: str, int** (default 1gb)
 
-  Size limit of a single batched file, e.g. 1Gb. or 1073741824. You can set this to a number representing total byte or a human readable value like '1Gib'.Strings like 1gb, 1Gib, 2MB and 0.5 gib are all supported. Please note the we consider 'b' the same as 'ib', which is defined as base 1024. If a file size is even larger than the the partition_size, the file will not be batched and will be directly uploaded to snowball. Configure **partition_size** and the **max_files** options together to control how files are batched.
+  Size limit of a single batched file, e.g. 1Gb. or 1073741824. You can set this to a number representing total byte or a human-readable value like '1Gib'.Strings like 1gb, 1Gib, 2MB and 0.5 gib are all supported. Please note that we consider 'b' the same as 'ib', which is defined as base 1024. If a file size is larger than the max_tarfile_size, the file will not be batched and will be directly uploaded to snowball. Configure **max_tarfile_size** and the **max_files** options together to control how files are batched.
 
 * **max_files, int** (default 100000)
 
-  Max number of file that each tar file will contains. Configure **partition_size** and the **max_files** options together to control how files are batched.
+  Max number of files that each tar file will contain. Configure **max_tarfile_size** and the **max_files** options together to control how files are batched.
 
 * **extract_flag: bool** (default True)
 
-  True|False; We will help you extract all the files **batched by this tool** if you set this to True. All files that originally in the format of tar will be untouched.
+  True|False; All files **batched by this tool** will be extracted if this is set to True. All files that are originally in tar format will be uploaded as tar files.
 
 * **target_file_prefix: str** (default "")
 
-  The prefix of the tar file this tool creates. e.g. If you set this to "snowJobTest", the tar file created will be something like: 'snowJobTestsnowball-20220713_222749-HBSZ5D.tar'
+  The prefix of the tar files created by the tool. For example, if it is set to "snowJobTest", the tar file generated will be something like the following: snowJobTestsnowball-20220713_222749-HBSZ5D.tar.
 
 * **compression: bool** (default False)
 
-  True|False. This tool will compress the batched files to "gz" format by setting this to True
+  True|False. Setting this to True will compress the batched files to `gz` format.
 
 * **upload_logs: bool** (default False)
 
-  True|False. This tool will upload all the logs generated by this tool to Snowball and your S3 bucket by setting this to True
+  True|False. Setting this to True will upload all the logs generated by this tool to Snowball and your S3 bucket.
 
 * **ignored_path_prefix: str** (default "")
 
-  This option is only useful when you choose to use a partition file as the source to upload. Use this option combined with the **prefix_root** option to set the directory for object uploaded to Snowball. e.g. Inside your partition file, there is a file absolute path: "/Users/user/Documents/testfile.txt", if the **prefix_root** was set to "/dir" and the **ignored_path_prefix** was set to "/Users/user/", the file will be in "/dir/Documents/testfile.txt" in Snowball device. 
+  This option is only useful when you choose to use a partition file as the source. This option can be used in combination with the **prefix_root** option to set the directory for the object to be uploaded to Snowball. For example, suppose inside a partition file, an absolute path is this: "/Users/user/Documents/testfile.txt"; if the **prefix_root** is set to "/dir" and the **ignored_path_prefix** is set to "/Users/user/", the file path will be "/dir/Documents/testfile.txt" in a Snowball device. 
 
 * **config_file: str**
 
-  Path of the config file, e.g. ./config. If this argument is not present in command line, --src, --bucket_name, --endpoint, and --log_dir are required. 
-
-We provide two ways to configure the file: by using command line and by using config file.
+  Path to the config file, e.g. ./config. There are two ways to configure the command: using command line argument or a config file. If a config file is not specified via this argument in command line, all the following  arguments are required: --src, --bucket_name, --endpoint, and --log_dir.
 
 ##### Configure using command line
 
@@ -268,7 +265,7 @@ Example:
 snowTransfer upload --config_file config_file
 ```
 
-A template of config file is also provided. Please modify the arguments under '[UPLOAD]' if you choose to use configuration file. Also please do not modify the any contents before "=". The program will not be able to identify them if the argument names are different.
+See below for a config file template. Please modify the arguments under `[UPLOAD]` if you choose to use a configuration file. Do not modify anything  before `=`. The program will not be able to identify them if the argument names are different.
 
 Configuration file template:
 
@@ -282,7 +279,7 @@ aws_access_key_id =
 aws_secret_access_key = 
 prefix_root = share1/
 max_process = 5
-partition_size = 1Gb
+max_tarfile_size = 1Gb
 max_files = 100000
 extract_flag = True
 target_file_prefix =
@@ -298,14 +295,14 @@ src = /share1
 log_dir = /home/logs/snowball1
 ```
 
-Please note that if a arguments was set in both command line and configuration file, the configuration file has predominance. 
+Please note that if an argument is set both through command line and in a configuration file, the configuration file value takes precedence.
 
 #### Example Output
 
 **Uploading from src directory:**
 
 ```
-➜  snow-transfer-tool git:(main) ✗ snowTransfer upload --config_file config_file  
+➜ snowTransfer upload --config_file config_file  
 2022-09-14 11:22:34,682 : print_setting : [INFO] : 
 command: upload
 src: /share1
@@ -315,7 +312,7 @@ log_dir: /home/logs/snowball1
 profile_name: default
 prefix_root: share1/
 max_process: 5
-partition_size: 5.00 MiB
+max_tarfile_size: 5.00 MiB
 max_files: 100000
 compression: False
 target_file_prefix: 
@@ -339,7 +336,7 @@ zictestsnowball-20220914_112234-I9079T.tar: 100%|██████████�
 
 **Uploading from partition file**
 
-The content of the partition file will be like: 
+The content of an example partition file: 
 
 ```bash
 /Users/Documents/test/testf1 4811
@@ -354,10 +351,10 @@ The content of the partition file will be like:
 /Users/Documents/test/testf10 6148
 ```
 
-The program will only consider the first string split by space as the file path, so the file_size here are useless, which means you can use other tool e.g. fpart to split their data and then upload.
+The program will only consider the first string split by space as the file path, so the file_size here is not pertinent to the transfer operation, which means you can use other tool e.g. fpart, to split data and then upload.
 
 ```
-➜  snow-transfer-tool git:(main) ✗ snowTransfer upload --config_file config_file
+➜ snowTransfer upload --config_file config_file
 2022-09-14 11:24:35,786 : print_setting : [INFO] : 
 command: upload
 src: /home/listfiles/snowball1/fl_1.txt
@@ -367,7 +364,7 @@ log_dir: /home/logs/snowball1
 profile_name: default
 prefix_root: dir1/
 max_process: 5
-partition_size: 5.00 MiB
+max_tarfile_size: 5.00 MiB
 max_files: 100000
 compression: False
 target_file_prefix:
@@ -392,18 +389,18 @@ zictestsnowball-20220914_112435-OVN157.tar: 100%|██████████�
 
 ## Performance Comparison
 
-We've tested the performance between using snowTransferTool. Note that performance may vary when using different configurations. Here, we used an EC2 (c4.8xlarge) as transfer engine to transfer data from EBS (gp2) to Snowball Edge device.
+We compared the performance between using snowTransferTool and `aws s3 cp`. Note that performance may vary with different configurations. Here, we used an EC2 (c4.8xlarge) as the transfer engine to move data from an EBS (gp2) to a Snowball Edge device.
 
-Data set:
+Dataset:
 
-* No. of files: 10000000
+* No. of files: 10,000,000
 * Total Capacity: 1 TB
-* Avg File Size: 100 Kb
+* Avg File Size: 100 KB
 
 |                                              | EBS -> Snowball Time |
-| -------------------------------------------- | -------------------- |
-| Using snowTransferTool (max_tar_size == 1Gb) | 45 min (~370mb/s)    |
-| Uploading individually (1 process)           | 1786 min (~10 mb/s)   |
+|----------------------------------------------|----------------------|
+| Using snowTransferTool (max_tar_size == 1GB) | 45 min (~370 MB/s)   |
+| Uploading individually (1 process)           | 1786 min (~10 MB/s)  |
 
 
 ## Security
